@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/*
+ * Loopkeeper theme: Material dark on a soft ink base (pure black was too harsh).
+ * Surfaces are lifted with white overlays (Material elevation), never grey boxes.
+ * Accents are a colour language: each one always means the same kind of thing.
+ */
+@theme {
+  --font-sans: "Prompt", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: #121217;
+  --color-foreground: #f5f5f7;
+  --color-muted: #9a9aa3;
+  --color-faint: #5c5c66;
+
+  /* Material elevation overlays */
+  --color-surface-1: rgb(255 255 255 / 0.05);
+  --color-surface-2: rgb(255 255 255 / 0.08);
+  --color-surface-3: rgb(255 255 255 / 0.12);
+  --color-hairline: rgb(255 255 255 / 0.08);
+
+  /* The colour language */
+  --color-coral: #ff6b6b;     /* issues, bugs */
+  --color-sunflower: #ffc845; /* schools, promises */
+  --color-sky: #5ac8fa;       /* people */
+  --color-mint: #4cd7a5;      /* messages, resolved */
+  --color-lilac: #b39dff;     /* features, code, Loopkeeper itself */
+
+  --text-display: 4.5rem;
+  --text-display--line-height: 1.02;
+  --text-headline: 2.75rem;
+  --text-headline--line-height: 1.1;
+  --text-title: 1.75rem;
+  --text-title--line-height: 1.2;
+  --text-lead: 1.25rem;
+  --text-lead--line-height: 1.5;
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.55;
+  --text-small: 0.9375rem;
+  --text-small--line-height: 1.45;
+
+  --radius-pill: 999px;
+  --radius-sheet: 2rem;
+  --radius-card: 1.5rem;
+  --radius-chip: 0.875rem;
+
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-lilac) 40%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-lilac);
+    outline-offset: 3px;
+    border-radius: 12px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateX(48px) scale(0.98); }
+}
+@keyframes sheet-out {
+  to { opacity: 0; transform: translateX(32px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
