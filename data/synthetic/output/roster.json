@@ -1,0 +1,96 @@
+{
+  "group": "Ednovax Schools Support",
+  "schools": [
+    {
+      "id": "sch_royal",
+      "name": "Royal Academy",
+      "city": "Benin City"
+    },
+    {
+      "id": "sch_bright",
+      "name": "Bright Future College",
+      "city": "Lagos"
+    },
+    {
+      "id": "sch_unity",
+      "name": "Unity Model School",
+      "city": "Abuja"
+    }
+  ],
+  "people": [
+    {
+      "key": "adaeze",
+      "name": "Mrs Adaeze Okafor",
+      "role": "teacher",
+      "schoolId": "sch_royal",
+      "whatsappLabel": "Mrs Adaeze Okafor"
+    },
+    {
+      "key": "efe",
+      "name": "Mrs Efe Omoregie",
+      "role": "teacher",
+      "schoolId": "sch_royal",
+      "whatsappLabel": "Mrs Efe Omoregie"
+    },
+    {
+      "key": "osaro",
+      "name": "Mr Osaro Igbinedion",
+      "role": "admin",
+      "schoolId": "sch_royal",
+      "whatsappLabel": "Mr Osaro Igbinedion"
+    },
+    {
+      "key": "chidi",
+      "name": "Mr Chidi Nwosu",
+      "role": "teacher",
+      "schoolId": "sch_bright",
+      "whatsappLabel": "Mr Chidi Nwosu"
+    },
+    {
+      "key": "bisi",
+      "name": "Miss Bisi Lawal",
+      "role": "teacher",
+      "schoolId": "sch_bright",
+      "whatsappLabel": "Miss Bisi Lawal"
+    },
+    {
+      "key": "funke",
+      "name": "Mrs Funke Adeyemi",
+      "role": "admin",
+      "schoolId": "sch_bright",
+      "whatsappLabel": "Mrs Funke Adeyemi"
+    },
+    {
+      "key": "ibrahim",
+      "name": "Mallam Ibrahim Musa",
+      "role": "teacher",
+      "schoolId": "sch_unity",
+      "whatsappLabel": "+234 803 555 0142"
+    },
+    {
+      "key": "grace",
+      "name": "Mrs Grace Danjuma",
+      "role": "admin",
+      "schoolId": "sch_unity",
+      "whatsappLabel": "Mrs Grace Danjuma"
+    },
+    {
+      "key": "tunde",
+      "name": "Tunde Bakare",
+      "role": "developer",
+      "whatsappLabel": "Tunde Bakare"
+    },
+    {
+      "key": "kemi",
+      "name": "Kemi Ojo",
+      "role": "developer",
+      "whatsappLabel": "Kemi Ojo"
+    },
+    {
+      "key": "ngozi",
+      "name": "Ngozi Eze",
+      "role": "support",
+      "whatsappLabel": "Ngozi Eze"
+    }
+  ]
+}

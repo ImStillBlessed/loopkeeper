@@ -1,0 +1,27 @@
+{
+  "name": "loopkeeper",
+  "version": "0.1.0",
+  "description": "A company brain for teams whose customers live on WhatsApp, not Jira. Powered by FalkorDB.",
+  "scripts": {
+    "db:up": "docker compose up -d falkordb",
+    "db:check": "tsx scripts/check-falkordb.ts",
+    "data:generate": "tsx data/synthetic/generate.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "falkordb": "^6.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
+}

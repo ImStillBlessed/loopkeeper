@@ -1,0 +1,147 @@
+22/08/2026, 09:00 - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.
+22/08/2026, 09:00 - Ngozi Eze created group "Ednovax Schools Support"
+22/08/2026, 09:01 - Ngozi Eze added Tunde Bakare, Kemi Ojo
+22/08/2026, 09:05 - Ngozi Eze added Mrs Adaeze Okafor, Mrs Efe Omoregie, Mr Osaro Igbinedion
+22/08/2026, 09:06 - Ngozi Eze added Mr Chidi Nwosu, Miss Bisi Lawal, Mrs Funke Adeyemi
+22/08/2026, 09:07 - Ngozi Eze added Mrs Grace Danjuma, +234 803 555 0142
+21/09/2026, 06:45 - Mrs Funke Adeyemi: Happy new week everyone! May this week be fruitful 🙏🏾
+21/09/2026, 06:53 - Kemi Ojo: Good morning o
+21/09/2026, 07:10 - Mr Osaro Igbinedion: Amen and amen
+21/09/2026, 07:43 - Mrs Funke Adeyemi: Good morning sir/ma
+21/09/2026, 08:31 - Mr Chidi Nwosu: Good morning 🌞
+22/09/2026, 06:56 - Kemi Ojo: Good morning everyone 🌞
+22/09/2026, 08:01 - Mr Osaro Igbinedion: Good morning ma 🙏🏾
+22/09/2026, 10:15 - Mr Chidi Nwosu: How do I reset a student's password? One of my students forgot his own
+22/09/2026, 10:32 - Ngozi Eze: Go to Students → pick the student → Reset password. They will get a new one-time code
+22/09/2026, 10:40 - Mr Chidi Nwosu: Thank you ma
+22/09/2026, 19:03 - Miss Bisi Lawal: *FORWARDED* 📢 Health tip: drink at least 8 glasses of water daily. Please share with your loved ones
+22/09/2026, 21:50 - Mrs Funke Adeyemi: 😊
+23/09/2026, 06:04 - Mrs Adaeze Okafor: GM all 🙏🏾
+23/09/2026, 08:14 - Mrs Grace Danjuma: Morning sir
+23/09/2026, 11:00 - Mrs Grace Danjuma: Please can we change a student's class after registration?
+23/09/2026, 11:20 - Ngozi Eze: Yes ma. Edit the student and change Class. Their old scores will stay
+23/09/2026, 15:30 - Miss Bisi Lawal: Please how do I print report cards for the whole class at once?
+23/09/2026, 15:48 - Ngozi Eze: Results → select class → Print all. It makes one PDF for the class
+23/09/2026, 15:50 - Miss Bisi Lawal: Ah okay. Thank you 🙏🏾
+24/09/2026, 07:00 - Mr Osaro Igbinedion: Good morning sir/ma
+24/09/2026, 07:23 - Ngozi Eze: Good morning everyone 🌞
+24/09/2026, 08:04 - Mrs Grace Danjuma: Good morning 🌞
+24/09/2026, 09:40 - Mrs Adaeze Okafor: Good morning. Please the scores I entered for JSS2 Maths did not save after the exam. I clicked submit and it just kept loading
+24/09/2026, 09:52 - Mrs Efe Omoregie: Same here o, JSS3 own too
+24/09/2026, 10:30 - Ngozi Eze: Sorry about this ma. We are checking it now
+24/09/2026, 10:31 - Mrs Adaeze Okafor: Thank you ma 🙏🏾
+25/09/2026, 06:13 - Mrs Adaeze Okafor: Good morning all. Have a blessed day
+25/09/2026, 08:36 - Kemi Ojo: Good morning ma 🙏🏾
+25/09/2026, 11:10 - Mrs Efe Omoregie: Students in SS3 can't see the Chemistry test I set
+25/09/2026, 11:25 - Kemi Ojo: You need to publish it first ma. Open the test and click Publish
+25/09/2026, 11:31 - Mrs Efe Omoregie: Ah I see, done. They can see it now. Thanks
+25/09/2026, 14:05 - Mr Chidi Nwosu: Hello Ednovax team, our SS1 scores are not saving. Teachers submit and when they come back the page is empty 😩
+25/09/2026, 16:20 - +234 803 555 0142: Abeg the score submission no dey work for us too. After exam we enter marks, e no gree save
+25/09/2026, 17:02 - Tunde Bakare: Thanks everyone. Looks like score submission is timing out for big classes. I'm looking into it
+26/09/2026, 19:36 - +234 803 555 0142: <Media omitted>
+27/09/2026, 08:59 - Miss Bisi Lawal: Blessed Sunday to everyone
+27/09/2026, 09:38 - Tunde Bakare: Amen o
+27/09/2026, 10:09 - Mr Chidi Nwosu: Amen and amen
+28/09/2026, 06:37 - Tunde Bakare: Good morning, God bless our day
+28/09/2026, 06:45 - Mrs Grace Danjuma: Happy new week everyone! May this week be fruitful 🙏🏾
+28/09/2026, 07:10 - Mrs Grace Danjuma: Amen and amen
+28/09/2026, 07:59 - Kemi Ojo: GM all 🙏🏾
+28/09/2026, 08:15 - Mrs Funke Adeyemi: The CBT timer is not showing on the students' phones. Most of them are using Tecno
+28/09/2026, 08:17 - Mrs Efe Omoregie: Good morning 🌞
+28/09/2026, 08:28 - Kemi Ojo: Good morning ma 🙏🏾
+28/09/2026, 08:40 - Kemi Ojo: Sorry about that ma. Please can you send a screenshot from one of the phones?
+28/09/2026, 09:02 - Mrs Funke Adeyemi: <Media omitted>
+28/09/2026, 09:03 - Mrs Funke Adeyemi: This is how it looks on the Tecno ones. Infinix is fine
+28/09/2026, 11:30 - Kemi Ojo: Thank you ma. We've found the problem, the fix will be out by tomorrow evening
+28/09/2026, 14:00 - Mrs Grace Danjuma: Can a student retake a CBT test if their phone switched off in the middle?
+28/09/2026, 14:22 - Kemi Ojo: Yes ma. Go to the test → Attempts → Allow retake for that student
+28/09/2026, 15:42 - Mrs Efe Omoregie: *FORWARDED* Beware of fake bank SMS. Do not share your BVN with anybody
+28/09/2026, 21:12 - +234 803 555 0142: Okay o
+29/09/2026, 06:47 - Mrs Efe Omoregie: Good morning, God bless our day
+29/09/2026, 07:45 - Kemi Ojo: Good morning sir/ma
+29/09/2026, 08:00 - Tunde Bakare: Good morning 🌞
+29/09/2026, 09:30 - Ngozi Eze: Hello all, I'll share the training video for new teachers tomorrow
+29/09/2026, 15:20 - Mr Osaro Igbinedion: @Ngozi Eze I'll send the updated student list for the new JSS1 intake by Thursday
+29/09/2026, 15:25 - Ngozi Eze: Okay sir, thank you
+29/09/2026, 17:14 - Mrs Funke Adeyemi: <Media omitted>
+30/09/2026, 06:34 - Mr Chidi Nwosu: Good morning all. Have a blessed day
+30/09/2026, 07:58 - Mrs Efe Omoregie: Good morning sir/ma
+30/09/2026, 08:13 - Ngozi Eze: Same to you
+30/09/2026, 08:17 - Miss Bisi Lawal: Same to you
+30/09/2026, 10:05 - Mrs Funke Adeyemi: It's working now 🙏🏾 the timer is showing on all the phones. Thank you Kemi!
+30/09/2026, 10:12 - Kemi Ojo: You're welcome ma 😊
+30/09/2026, 16:00 - Ngozi Eze: As promised, here is the training video for new teachers: https://example.com/ednovax-training
+30/09/2026, 16:20 - Mrs Grace Danjuma: Thank you so much 🙏🏾
+01/10/2026, 06:40 - Kemi Ojo: Good morning all. Have a blessed day
+01/10/2026, 07:00 - Ngozi Eze: Happy Independence Day Nigeria 🇳🇬💚 From all of us at Ednovax
+01/10/2026, 07:20 - Mr Osaro Igbinedion: Happy Independence Day 🇳🇬
+01/10/2026, 07:41 - +234 803 555 0142: Happy Independence. God bless Nigeria
+01/10/2026, 08:02 - Mr Osaro Igbinedion: <Media omitted>
+01/10/2026, 08:36 - +234 803 555 0142: Same to you
+01/10/2026, 14:55 - Mr Osaro Igbinedion: *FORWARDED* Good news!!! Government to pay all teachers bonus this month. Share to 10 groups
+01/10/2026, 17:50 - Mrs Funke Adeyemi: <Media omitted>
+02/10/2026, 06:14 - Mr Chidi Nwosu: Good morning everyone 🌞
+02/10/2026, 08:12 - Mrs Funke Adeyemi: Morning sir
+02/10/2026, 09:10 - Mr Chidi Nwosu: The app is asking me to update. Should I?
+02/10/2026, 09:25 - Kemi Ojo: Yes sir, please update. The new version has the timer fix
+02/10/2026, 11:00 - Mrs Grace Danjuma: Ngozi, as we discussed on the call, we've agreed to move our mock exam to Friday next week so the timer fix can be tested first
+02/10/2026, 11:06 - Ngozi Eze: Noted ma. Unity mock exam moved to Friday 9th 👍🏾
+03/10/2026, 06:52 - Mrs Efe Omoregie: Good morning, God bless our day
+03/10/2026, 08:50 - Kemi Ojo: Same to you
+03/10/2026, 17:34 - +234 803 555 0142: *FORWARDED* 📢 Health tip: drink at least 8 glasses of water daily. Please share with your loved ones
+03/10/2026, 18:00 - Kemi Ojo: Heads up: Ednovax will be down for maintenance tonight from 10pm to 11pm
+03/10/2026, 21:32 - Ngozi Eze: 🙏🏾🙏🏾
+04/10/2026, 07:29 - Mrs Adaeze Okafor: Good morning everyone 🌞
+04/10/2026, 08:30 - Mrs Grace Danjuma: Good morning 🌞
+04/10/2026, 08:58 - +234 803 555 0142: Blessed Sunday to everyone
+04/10/2026, 09:41 - Ngozi Eze: Amen and amen
+04/10/2026, 09:53 - Kemi Ojo: Amen and amen
+04/10/2026, 10:42 - +234 803 555 0142: Amen o
+05/10/2026, 06:43 - Mrs Adaeze Okafor: Good morning everyone 🌞
+05/10/2026, 06:45 - Mrs Funke Adeyemi: Happy new week all. Success in all we do
+05/10/2026, 07:10 - Kemi Ojo: Amen o
+05/10/2026, 08:30 - Mr Chidi Nwosu: The score problem happened again today for JSS1
+05/10/2026, 10:05 - Mrs Adaeze Okafor: Is there a limit to how many questions we can put in one CBT test?
+05/10/2026, 10:30 - Kemi Ojo: Up to 100 questions per test ma
+05/10/2026, 10:44 - Mrs Adaeze Okafor: Please can you send us a guide on how to import questions from Word?
+05/10/2026, 10:52 - Kemi Ojo: Sure ma, I'll send the question import guide by Wednesday
+05/10/2026, 13:10 - Miss Bisi Lawal: Please is it possible to export results to Excel? Our principal wants to print the broadsheet
+05/10/2026, 13:40 - Tunde Bakare: That's a good idea ma. We'll add it to our list
+05/10/2026, 18:21 - Mrs Efe Omoregie: <Media omitted>
+06/10/2026, 06:34 - Miss Bisi Lawal: GM all 🙏🏾
+06/10/2026, 07:52 - Mrs Efe Omoregie: Login is very slow this morning 😩
+06/10/2026, 08:13 - Mrs Efe Omoregie: It's fine now. Ignore 🙏🏾
+06/10/2026, 12:20 - +234 803 555 0142: Good afternoon. The results page is showing wrong class average for SS2
+06/10/2026, 12:45 - Tunde Bakare: Thanks sir, I'll check it today
+07/10/2026, 06:58 - Mrs Funke Adeyemi: Happy birthday Mrs Grace! 🎂🎉 More years in good health
+07/10/2026, 07:15 - Mrs Adaeze Okafor: HBD ma 🎉🎉 God bless your new age
+07/10/2026, 07:19 - Mrs Funke Adeyemi: GM all 🙏🏾
+07/10/2026, 07:22 - Ngozi Eze: Happy birthday ma! 🎂 Cheers to many more
+07/10/2026, 07:40 - Mr Chidi Nwosu: Happy birthday Mrs Danjuma 🙏🏾
+07/10/2026, 08:10 - Mrs Efe Omoregie: <Media omitted>
+07/10/2026, 08:27 - Miss Bisi Lawal: Morning sir
+07/10/2026, 09:15 - Mrs Adaeze Okafor: Some teachers can't upload their profile picture. It says file too large
+07/10/2026, 09:50 - Kemi Ojo: Thanks ma, we've raised the limit. Please try again
+07/10/2026, 10:20 - Mrs Adaeze Okafor: Working now, thank you
+07/10/2026, 11:30 - Mrs Grace Danjuma: Thank you all so much 🙏🏾 God bless you
+07/10/2026, 15:15 - Kemi Ojo: Here is the question import guide as promised: https://example.com/question-import-guide
+07/10/2026, 19:31 - Mr Osaro Igbinedion: <Media omitted>
+08/10/2026, 06:08 - Kemi Ojo: GM all 🙏🏾
+08/10/2026, 07:05 - Mrs Grace Danjuma: GM all 🙏🏾
+08/10/2026, 08:00 - Mrs Efe Omoregie: Amen 🙏🏾
+08/10/2026, 08:05 - Kemi Ojo: Good morning ma 🙏🏾
+08/10/2026, 10:30 - +234 803 555 0142: It's working now, thank you
+08/10/2026, 14:00 - Miss Bisi Lawal: Can parents get an SMS when results are released? Many of them don't check the app
+08/10/2026, 14:30 - Ngozi Eze: Noted ma, I'll pass it to the team
+08/10/2026, 20:30 - Miss Bisi Lawal: <Media omitted>
+09/10/2026, 07:55 - Tunde Bakare: Good morning o
+09/10/2026, 09:05 - Mrs Funke Adeyemi: How do I add a second teacher to the same subject?
+09/10/2026, 09:20 - Ngozi Eze: Subjects → open the subject → Add teacher. Both of them can enter scores
+09/10/2026, 11:45 - Mr Osaro Igbinedion: Please is the score problem fixed? Our teachers are still waiting to enter the 2nd test
+09/10/2026, 12:10 - Ngozi Eze: Not yet sir, Tunde is on it. We will update you
+10/10/2026, 06:21 - Mrs Adaeze Okafor: Good morning everyone 🌞
+10/10/2026, 08:15 - Mrs Grace Danjuma: Good morning 🌞
+11/10/2026, 07:47 - Mr Osaro Igbinedion: Happy Sunday family. May God guide us this week 🙏🏾
+11/10/2026, 10:04 - Mr Osaro Igbinedion: God dey 🙏🏾
+11/10/2026, 10:43 - Ngozi Eze: Amen and amen
+11/10/2026, 10:54 - Mr Osaro Igbinedion: Amen and amen

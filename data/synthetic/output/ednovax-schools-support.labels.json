@@ -1,0 +1,1095 @@
+[
+  {
+    "index": 0,
+    "sender": "funke",
+    "text": "Happy new week everyone! May this week be fruitful 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 1,
+    "sender": "kemi",
+    "text": "Good morning o",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 2,
+    "sender": "osaro",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 3,
+    "sender": "funke",
+    "text": "Good morning sir/ma",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 4,
+    "sender": "chidi",
+    "text": "Good morning 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 5,
+    "sender": "kemi",
+    "text": "Good morning everyone 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 6,
+    "sender": "osaro",
+    "text": "Good morning ma 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 7,
+    "sender": "chidi",
+    "text": "How do I reset a student's password? One of my students forgot his own",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 8,
+    "sender": "ngozi",
+    "text": "Go to Students → pick the student → Reset password. They will get a new one-time code",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 9,
+    "sender": "chidi",
+    "text": "Thank you ma",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 10,
+    "sender": "bisi",
+    "text": "*FORWARDED* 📢 Health tip: drink at least 8 glasses of water daily. Please share with your loved ones",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 11,
+    "sender": "funke",
+    "text": "😊",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 12,
+    "sender": "adaeze",
+    "text": "GM all 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 13,
+    "sender": "grace",
+    "text": "Morning sir",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 14,
+    "sender": "grace",
+    "text": "Please can we change a student's class after registration?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 15,
+    "sender": "ngozi",
+    "text": "Yes ma. Edit the student and change Class. Their old scores will stay",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 16,
+    "sender": "bisi",
+    "text": "Please how do I print report cards for the whole class at once?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 17,
+    "sender": "ngozi",
+    "text": "Results → select class → Print all. It makes one PDF for the class",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 18,
+    "sender": "bisi",
+    "text": "Ah okay. Thank you 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 19,
+    "sender": "osaro",
+    "text": "Good morning sir/ma",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 20,
+    "sender": "ngozi",
+    "text": "Good morning everyone 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 21,
+    "sender": "grace",
+    "text": "Good morning 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 22,
+    "sender": "adaeze",
+    "text": "Good morning. Please the scores I entered for JSS2 Maths did not save after the exam. I clicked submit and it just kept loading",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S1"
+  },
+  {
+    "index": 23,
+    "sender": "efe",
+    "text": "Same here o, JSS3 own too",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S1"
+  },
+  {
+    "index": 24,
+    "sender": "ngozi",
+    "text": "Sorry about this ma. We are checking it now",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "S1"
+  },
+  {
+    "index": 25,
+    "sender": "adaeze",
+    "text": "Thank you ma 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 26,
+    "sender": "adaeze",
+    "text": "Good morning all. Have a blessed day",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 27,
+    "sender": "kemi",
+    "text": "Good morning ma 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 28,
+    "sender": "efe",
+    "text": "Students in SS3 can't see the Chemistry test I set",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "BG"
+  },
+  {
+    "index": 29,
+    "sender": "kemi",
+    "text": "You need to publish it first ma. Open the test and click Publish",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 30,
+    "sender": "efe",
+    "text": "Ah I see, done. They can see it now. Thanks",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "resolution",
+    "scenario": "BG"
+  },
+  {
+    "index": 31,
+    "sender": "chidi",
+    "text": "Hello Ednovax team, our SS1 scores are not saving. Teachers submit and when they come back the page is empty 😩",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S1"
+  },
+  {
+    "index": 32,
+    "sender": "ibrahim",
+    "text": "Abeg the score submission no dey work for us too. After exam we enter marks, e no gree save",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S1"
+  },
+  {
+    "index": 33,
+    "sender": "tunde",
+    "text": "Thanks everyone. Looks like score submission is timing out for big classes. I'm looking into it",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "S1"
+  },
+  {
+    "index": 34,
+    "sender": "ibrahim",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 35,
+    "sender": "bisi",
+    "text": "Blessed Sunday to everyone",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 36,
+    "sender": "tunde",
+    "text": "Amen o",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 37,
+    "sender": "chidi",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 38,
+    "sender": "tunde",
+    "text": "Good morning, God bless our day",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 39,
+    "sender": "grace",
+    "text": "Happy new week everyone! May this week be fruitful 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 40,
+    "sender": "grace",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 41,
+    "sender": "kemi",
+    "text": "GM all 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 42,
+    "sender": "funke",
+    "text": "The CBT timer is not showing on the students' phones. Most of them are using Tecno",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S2"
+  },
+  {
+    "index": 43,
+    "sender": "efe",
+    "text": "Good morning 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 44,
+    "sender": "kemi",
+    "text": "Good morning ma 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 45,
+    "sender": "kemi",
+    "text": "Sorry about that ma. Please can you send a screenshot from one of the phones?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "S2"
+  },
+  {
+    "index": 46,
+    "sender": "funke",
+    "text": "",
+    "hasMedia": true,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S2"
+  },
+  {
+    "index": 47,
+    "sender": "funke",
+    "text": "This is how it looks on the Tecno ones. Infinix is fine",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S2"
+  },
+  {
+    "index": 48,
+    "sender": "kemi",
+    "text": "Thank you ma. We've found the problem, the fix will be out by tomorrow evening",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "promise",
+    "scenario": "S2"
+  },
+  {
+    "index": 49,
+    "sender": "grace",
+    "text": "Can a student retake a CBT test if their phone switched off in the middle?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 50,
+    "sender": "kemi",
+    "text": "Yes ma. Go to the test → Attempts → Allow retake for that student",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 51,
+    "sender": "efe",
+    "text": "*FORWARDED* Beware of fake bank SMS. Do not share your BVN with anybody",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 52,
+    "sender": "ibrahim",
+    "text": "Okay o",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 53,
+    "sender": "efe",
+    "text": "Good morning, God bless our day",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 54,
+    "sender": "kemi",
+    "text": "Good morning sir/ma",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 55,
+    "sender": "tunde",
+    "text": "Good morning 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 56,
+    "sender": "ngozi",
+    "text": "Hello all, I'll share the training video for new teachers tomorrow",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "promise",
+    "scenario": "BG"
+  },
+  {
+    "index": 57,
+    "sender": "osaro",
+    "text": "@Ngozi Eze I'll send the updated student list for the new JSS1 intake by Thursday",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "promise",
+    "scenario": "S3"
+  },
+  {
+    "index": 58,
+    "sender": "ngozi",
+    "text": "Okay sir, thank you",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 59,
+    "sender": "funke",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 60,
+    "sender": "chidi",
+    "text": "Good morning all. Have a blessed day",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 61,
+    "sender": "efe",
+    "text": "Good morning sir/ma",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 62,
+    "sender": "ngozi",
+    "text": "Same to you",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 63,
+    "sender": "bisi",
+    "text": "Same to you",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 64,
+    "sender": "funke",
+    "text": "It's working now 🙏🏾 the timer is showing on all the phones. Thank you Kemi!",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "resolution",
+    "scenario": "S2"
+  },
+  {
+    "index": 65,
+    "sender": "kemi",
+    "text": "You're welcome ma 😊",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 66,
+    "sender": "ngozi",
+    "text": "As promised, here is the training video for new teachers: https://example.com/ednovax-training",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 67,
+    "sender": "grace",
+    "text": "Thank you so much 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 68,
+    "sender": "kemi",
+    "text": "Good morning all. Have a blessed day",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 69,
+    "sender": "ngozi",
+    "text": "Happy Independence Day Nigeria 🇳🇬💚 From all of us at Ednovax",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 70,
+    "sender": "osaro",
+    "text": "Happy Independence Day 🇳🇬",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 71,
+    "sender": "ibrahim",
+    "text": "Happy Independence. God bless Nigeria",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 72,
+    "sender": "osaro",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 73,
+    "sender": "ibrahim",
+    "text": "Same to you",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 74,
+    "sender": "osaro",
+    "text": "*FORWARDED* Good news!!! Government to pay all teachers bonus this month. Share to 10 groups",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 75,
+    "sender": "funke",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 76,
+    "sender": "chidi",
+    "text": "Good morning everyone 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 77,
+    "sender": "funke",
+    "text": "Morning sir",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 78,
+    "sender": "chidi",
+    "text": "The app is asking me to update. Should I?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 79,
+    "sender": "kemi",
+    "text": "Yes sir, please update. The new version has the timer fix",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 80,
+    "sender": "grace",
+    "text": "Ngozi, as we discussed on the call, we've agreed to move our mock exam to Friday next week so the timer fix can be tested first",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "decision",
+    "scenario": "S4"
+  },
+  {
+    "index": 81,
+    "sender": "ngozi",
+    "text": "Noted ma. Unity mock exam moved to Friday 9th 👍🏾",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "decision",
+    "scenario": "S4"
+  },
+  {
+    "index": 82,
+    "sender": "efe",
+    "text": "Good morning, God bless our day",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 83,
+    "sender": "kemi",
+    "text": "Same to you",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 84,
+    "sender": "ibrahim",
+    "text": "*FORWARDED* 📢 Health tip: drink at least 8 glasses of water daily. Please share with your loved ones",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 85,
+    "sender": "kemi",
+    "text": "Heads up: Ednovax will be down for maintenance tonight from 10pm to 11pm",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 86,
+    "sender": "ngozi",
+    "text": "🙏🏾🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 87,
+    "sender": "adaeze",
+    "text": "Good morning everyone 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 88,
+    "sender": "grace",
+    "text": "Good morning 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 89,
+    "sender": "ibrahim",
+    "text": "Blessed Sunday to everyone",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 90,
+    "sender": "ngozi",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 91,
+    "sender": "kemi",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 92,
+    "sender": "ibrahim",
+    "text": "Amen o",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 93,
+    "sender": "adaeze",
+    "text": "Good morning everyone 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 94,
+    "sender": "funke",
+    "text": "Happy new week all. Success in all we do",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 95,
+    "sender": "kemi",
+    "text": "Amen o",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 96,
+    "sender": "chidi",
+    "text": "The score problem happened again today for JSS1",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S1"
+  },
+  {
+    "index": 97,
+    "sender": "adaeze",
+    "text": "Is there a limit to how many questions we can put in one CBT test?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 98,
+    "sender": "kemi",
+    "text": "Up to 100 questions per test ma",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 99,
+    "sender": "adaeze",
+    "text": "Please can you send us a guide on how to import questions from Word?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 100,
+    "sender": "kemi",
+    "text": "Sure ma, I'll send the question import guide by Wednesday",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "promise",
+    "scenario": "BG"
+  },
+  {
+    "index": 101,
+    "sender": "bisi",
+    "text": "Please is it possible to export results to Excel? Our principal wants to print the broadsheet",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "feature_request",
+    "scenario": "S5"
+  },
+  {
+    "index": 102,
+    "sender": "tunde",
+    "text": "That's a good idea ma. We'll add it to our list",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "S5"
+  },
+  {
+    "index": 103,
+    "sender": "efe",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 104,
+    "sender": "bisi",
+    "text": "GM all 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 105,
+    "sender": "efe",
+    "text": "Login is very slow this morning 😩",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S6"
+  },
+  {
+    "index": 106,
+    "sender": "efe",
+    "text": "It's fine now. Ignore 🙏🏾",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "resolution",
+    "scenario": "S6"
+  },
+  {
+    "index": 107,
+    "sender": "ibrahim",
+    "text": "Good afternoon. The results page is showing wrong class average for SS2",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "S7"
+  },
+  {
+    "index": 108,
+    "sender": "tunde",
+    "text": "Thanks sir, I'll check it today",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "promise",
+    "scenario": "S7"
+  },
+  {
+    "index": 109,
+    "sender": "funke",
+    "text": "Happy birthday Mrs Grace! 🎂🎉 More years in good health",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 110,
+    "sender": "adaeze",
+    "text": "HBD ma 🎉🎉 God bless your new age",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 111,
+    "sender": "funke",
+    "text": "GM all 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 112,
+    "sender": "ngozi",
+    "text": "Happy birthday ma! 🎂 Cheers to many more",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 113,
+    "sender": "chidi",
+    "text": "Happy birthday Mrs Danjuma 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 114,
+    "sender": "efe",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 115,
+    "sender": "bisi",
+    "text": "Morning sir",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 116,
+    "sender": "adaeze",
+    "text": "Some teachers can't upload their profile picture. It says file too large",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "bug",
+    "scenario": "BG"
+  },
+  {
+    "index": 117,
+    "sender": "kemi",
+    "text": "Thanks ma, we've raised the limit. Please try again",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 118,
+    "sender": "adaeze",
+    "text": "Working now, thank you",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "resolution",
+    "scenario": "BG"
+  },
+  {
+    "index": 119,
+    "sender": "grace",
+    "text": "Thank you all so much 🙏🏾 God bless you",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 120,
+    "sender": "kemi",
+    "text": "Here is the question import guide as promised: https://example.com/question-import-guide",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 121,
+    "sender": "osaro",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 122,
+    "sender": "kemi",
+    "text": "GM all 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 123,
+    "sender": "grace",
+    "text": "GM all 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 124,
+    "sender": "efe",
+    "text": "Amen 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 125,
+    "sender": "kemi",
+    "text": "Good morning ma 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 126,
+    "sender": "ibrahim",
+    "text": "It's working now, thank you",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "resolution",
+    "scenario": "S7"
+  },
+  {
+    "index": 127,
+    "sender": "bisi",
+    "text": "Can parents get an SMS when results are released? Many of them don't check the app",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "feature_request",
+    "scenario": "BG"
+  },
+  {
+    "index": 128,
+    "sender": "ngozi",
+    "text": "Noted ma, I'll pass it to the team",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 129,
+    "sender": "bisi",
+    "text": "",
+    "hasMedia": true,
+    "relevant": false
+  },
+  {
+    "index": 130,
+    "sender": "tunde",
+    "text": "Good morning o",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 131,
+    "sender": "funke",
+    "text": "How do I add a second teacher to the same subject?",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "BG"
+  },
+  {
+    "index": 132,
+    "sender": "ngozi",
+    "text": "Subjects → open the subject → Add teacher. Both of them can enter scores",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "BG"
+  },
+  {
+    "index": 133,
+    "sender": "osaro",
+    "text": "Please is the score problem fixed? Our teachers are still waiting to enter the 2nd test",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "question",
+    "scenario": "S1"
+  },
+  {
+    "index": 134,
+    "sender": "ngozi",
+    "text": "Not yet sir, Tunde is on it. We will update you",
+    "hasMedia": false,
+    "relevant": true,
+    "type": "status_update",
+    "scenario": "S1"
+  },
+  {
+    "index": 135,
+    "sender": "adaeze",
+    "text": "Good morning everyone 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 136,
+    "sender": "grace",
+    "text": "Good morning 🌞",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 137,
+    "sender": "osaro",
+    "text": "Happy Sunday family. May God guide us this week 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 138,
+    "sender": "osaro",
+    "text": "God dey 🙏🏾",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 139,
+    "sender": "ngozi",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  },
+  {
+    "index": 140,
+    "sender": "osaro",
+    "text": "Amen and amen",
+    "hasMedia": false,
+    "relevant": false
+  }
+]
