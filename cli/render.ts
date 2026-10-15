@@ -1,4 +1,4 @@
-import type { PipelineEvent } from "../src/pipeline/types.js";
+import type { HubEvent } from "../src/pipeline/types.js";
 
 /** The dashboard's colour language, in the terminal (24-bit colour). */
 const rgb = (hex: string) => (text: string) => {
@@ -35,7 +35,7 @@ export function day(ms: number): string {
 }
 
 /** One live event as a terminal line, or undefined to stay quiet. */
-export function renderEvent(event: PipelineEvent, showSmallTalk: boolean): string | undefined {
+export function renderEvent(event: HubEvent, showSmallTalk: boolean): string | undefined {
   switch (event.kind) {
     case "message": {
       const m = event.message;
@@ -50,6 +50,11 @@ export function renderEvent(event: PipelineEvent, showSmallTalk: boolean): strin
       return `  ${color.faint(time(event.ts))}  ${color.mint("Loopkeeper")}: ${event.text}`;
     case "run":
       return event.state === "failed" ? color.coral(`  ✗ ${event.error}`) : undefined;
+    case "hub": {
+      const e = event.entry;
+      const where = e.status === "routed" ? color.mint(`→ ${e.clientIds.join(", ")} (${e.reason})`) : e.status === "pending" ? color.sunflower("→ waiting for a person to route it") : color.faint("(team chatter)");
+      return `  ${color.faint(time(e.ts))}  ${color.lilac("hub")} ${color.sky(e.sender)}: ${e.text}  ${where}`;
+    }
     default:
       return undefined;
   }

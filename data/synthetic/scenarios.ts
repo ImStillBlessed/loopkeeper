@@ -8,7 +8,7 @@ import type { MessageType } from "../../src/pipeline/message-types.js";
  *   day 3 = Thu 24 Sep · day 7 = Mon 28 Sep · day 10 = Thu 1 Oct (Independence Day) · day 14 = Mon 5 Oct · day 20 = Sun 11 Oct
  */
 
-export type ScenarioId = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7" | "BG";
+export type ScenarioId = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7" | "S8" | "BG";
 
 export interface Label {
   relevant: boolean;
@@ -37,7 +37,7 @@ const media = (day: number, time: string, sender: string, label: Label): ChatEve
   day, time, sender, text: "", hasMedia: true, label,
 });
 
-/** S1 + S8: the same score-saving bug from three schools in different words. Stays open → dispatched to the code agent. */
+/** S1: the same score-saving bug from three schools in different words. Stays open: the cross-client pattern and the fix broadcast. */
 const S1_SCORES_NOT_SAVING: ChatEvent[] = [
   say(3, "09:40", "adaeze", "Good morning. Please the scores I entered for JSS2 Maths did not save after the exam. I clicked submit and it just kept loading", work("S1", "bug")),
   say(3, "09:52", "efe", "Same here o, JSS3 own too", work("S1", "bug")),
@@ -91,6 +91,17 @@ const S7_AMBIGUOUS_RESOLUTION: ChatEvent[] = [
   say(15, "12:20", "ibrahim", "Good afternoon. The results page is showing wrong class average for SS2", work("S7", "bug")),
   say(15, "12:45", "tunde", "Thanks sir, I'll check it today", work("S7", "promise")),
   say(17, "10:30", "ibrahim", "It's working now, thank you", work("S7", "resolution")),
+];
+
+/** S8: the lecture centre (a different product): QR attendance breaks at the morning lecture, and gets fixed. */
+const S8_CENTRE_ATTENDANCE: ChatEvent[] = [
+  say(5, "08:10", "halima", "Good morning. The QR attendance is not scanning for the 8am lecture, students are queuing at the door", work("S8", "bug")),
+  say(5, "08:25", "kemi", "Sorry about that ma, checking now. Which device are you scanning with?", work("S8", "question")),
+  say(5, "08:31", "halima", "The centre tablet, the Samsung one", work("S8", "bug")),
+  say(5, "11:00", "kemi", "Found it. The fix will be out by this evening", work("S8", "promise")),
+  say(6, "08:40", "femi", "QR scanning works now. Thank you Kemi 🙏🏾", work("S8", "resolution")),
+  say(12, "15:00", "femi", "Can candidates see their practice test progress on the parents' side?", work("S8", "question")),
+  say(12, "15:30", "ngozi", "Not yet sir, it's on the plan for next month. I'll update you when it's out", work("S8", "promise")),
 ];
 
 /** Everyday support work: questions, small bugs, promises that do get kept. */
@@ -147,5 +158,6 @@ export const SCRIPTED_EVENTS: ChatEvent[] = [
   ...S5_EXCEL_EXPORT,
   ...S6_SLOW_LOGIN,
   ...S7_AMBIGUOUS_RESOLUTION,
+  ...S8_CENTRE_ATTENDANCE,
   ...BACKGROUND_WORK,
 ];

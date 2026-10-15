@@ -19,7 +19,7 @@ describe("synthetic chat", () => {
 
   it("contains every planted scenario", () => {
     const scenarios = new Set(chat.map((e) => e.label.scenario).filter(Boolean));
-    expect([...scenarios].sort()).toEqual(["BG", "S1", "S2", "S3", "S4", "S5", "S6", "S7"]);
+    expect([...scenarios].sort()).toEqual(["BG", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"]);
   });
 
   it("S1 is reported by three different schools", () => {

@@ -1,6 +1,21 @@
-/** Typed calls to the Loopkeeper API. Shapes mirror the RETURN aliases in src/graph/queries.ts. */
+/** Typed calls to the support desk API. Shapes mirror the RETURN aliases in src/graph/*queries.ts. */
 
+// ─── Shared shapes ───────────────────────────────────────────────────────────
+
+export type Role = "admin" | "lead" | "agent" | "developer";
+export type Plan = "premium" | "standard";
+export type ClientType = "school" | "lecture_centre";
+export type Sentiment = "calm" | "concerned" | "frustrated";
 export type MessageType = "bug" | "feature_request" | "question" | "promise" | "resolution" | "status_update" | "decision";
+export type TicketStatus = "open" | "in_progress" | "possibly_resolved" | "resolved";
+export type SlaState = "on_track" | "due_soon" | "breached" | "met" | "missed";
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+}
 
 export interface FeedMessage {
   id: string;
@@ -11,54 +26,188 @@ export interface FeedMessage {
   hasMedia: boolean;
   relevant: boolean;
   type?: MessageType;
+  sentiment?: Sentiment;
 }
 
-export type PipelineEvent =
+export type DeskEvent = (
   | { kind: "message"; message: FeedMessage }
   | { kind: "activity"; text: string; issueId?: string; ts: string; source?: "chat" | "github" }
   | { kind: "bot"; text: string; ts: string; groupId?: string }
   | { kind: "stats"; seen: number; ignored: number; used: number }
-  | { kind: "live"; running: boolean; clock: number; groupId?: string }
-  | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string };
+  | { kind: "live"; running: boolean; clock: number }
+  | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string }
+  | { kind: "hub"; entry: HubEntry }
+) & { clientId?: string };
 
-export interface AppStatus {
-  hasApiKey: boolean;
-  githubConfigured: boolean;
-  defaultProject: string;
+export type Tenancy = "own_repo" | "branch" | "multi_tenant";
+
+/** Where a client's product runs: its own repo, its branch of a shared repo, or a tenant of the multi-tenant platform. */
+export interface Deployment {
+  product: string;
+  repo: string;
+  branch: string | null;
+  tenancy: Tenancy;
 }
 
-export interface Project {
+export interface ClientRecord {
   id: string;
   name: string;
-  seen: number;
-  groups: number;
-  repos: number;
+  type: ClientType;
+  plan: Plan;
+  city: string;
+  products: string[];
+  agentId: string;
+  agentName: string;
+  aliases: string[];
+  deployments: Deployment[];
 }
 
-export interface Stats {
+/** A message in the central support hub and where it went. */
+export interface HubEntry {
+  id: string;
+  ts: number;
+  sender: string;
+  text: string;
+  status: "routed" | "pending" | "ignored";
+  clientIds: string[];
+  method: "named" | "contact" | "thread" | "model" | "manual" | "";
+  reason: string;
+}
+
+export interface WhatsAppGroup {
+  id: string;
+  name: string;
+  clientId: string;
+  groupId: string;
+  inviteLink: string;
+  lastSeen: number;
+}
+
+export interface TeamNote {
+  id: string;
+  text: string;
+  by: string;
+  role: string;
+  ts: number;
+}
+
+export interface Health {
+  score: number;
+  band: "healthy" | "watch" | "at_risk";
+  reasons: Array<{ text: string; points: number }>;
+}
+
+export interface ClientSummary extends ClientRecord {
+  health: Health;
+  openTickets: number;
+  breached: number;
   seen: number;
   ignored: number;
-  used: number;
-  clock: number;
-  live: boolean;
-  liveGroupId: string | null;
+  lastMessageAt: number;
 }
 
-export type GroupSource = "simulator" | "whatsapp_export" | "wa_cloud";
+export interface SlaPolicy {
+  plan: Plan;
+  firstResponseMins: number;
+  resolveMins: number;
+}
 
-export interface Group {
+export interface Sla {
+  state: SlaState;
+  stage: "response" | "resolution";
+  dueAt: number;
+  firstResponseDue: number;
+  resolveDue: number;
+}
+
+export interface Ticket {
   id: string;
+  title: string;
+  kind: string;
+  status: TicketStatus | "merged";
+  severity: string;
+  feature: string;
+  createdAt: number;
+  updatedAt: number;
+  firstResponseAt: number;
+  resolvedAt: number;
+  messages: number;
+  merged: number;
+  owner: string;
+  escalated: boolean;
+  moods: Sentiment[];
+  clientId: string;
+  clientName: string;
+  plan: Plan;
+  sla: Sla;
+}
+
+export interface PatternSummary {
+  id: string;
+  title: string;
+  clients: number;
+  statuses: string[];
+  affected: string[];
+  pullRequests: string[];
+}
+
+export interface Overview {
+  now: number;
+  kpis: { openTickets: number; breached: number; dueSoon: number; escalated: number; atRisk: number; frustrated: number; sharedProblems: number };
+  attention: Ticket[];
+  clients: ClientSummary[];
+  patterns: PatternSummary[];
+}
+
+export interface Pattern {
+  id: string;
+  title: string;
+  feature: string;
+  featureKey: string;
+  product: string;
+  createdAt: number;
+  updatedAt: number;
+  clients: number;
+  signals: Array<{ issueId: string; clientId: string; clientName: string; status: string; severity: string; title: string; createdAt: number }>;
+  pullRequests: Array<{ number: number; title: string; url: string; state: string }>;
+}
+
+export interface Analytics {
+  from: number;
+  to: number;
+  daily: Array<{ day: number; opened: number; resolved: number }>;
+  totals: { opened: number; resolved: number; open: number };
+  medianFirstResponseMins: number | null;
+  medianResolveHours: number | null;
+  slaCompliance: number | null;
+  byFeature: Array<{ label: string; value: number }>;
+  byClient: Array<{ label: string; value: number }>;
+  byKind: Array<{ label: string; value: number }>;
+}
+
+export interface Product {
+  key: string;
   name: string;
-  source: GroupSource;
-  seen: number;
-  used: number;
-  lastMessageAt: number;
+  description: string;
+  repos: string[];
+  features: number;
+  clients: string[];
+}
+
+export interface Feature {
+  key: string;
+  name: string;
+  description: string;
+  files: number;
+  owners: string[];
 }
 
 export interface Repo {
   id: string;
   url: string;
   defaultBranch: string;
+  product: string;
+  productName: string;
   indexedAt: number;
   syncedAt: number;
   featureSource: string;
@@ -67,52 +216,58 @@ export interface Repo {
   commits: number;
 }
 
-export interface SecretSetting {
-  configured: boolean;
-  source: "app" | "env" | null;
-  hint: string | null;
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  clients: string[];
 }
 
-export interface Settings {
-  groqApiKey: SecretSetting;
-  githubToken: SecretSetting;
-  githubWebhookSecret: SecretSetting;
-  fastModel: string;
-  smartModel: string;
+export interface Group {
+  id: string;
+  name: string;
+  source: "simulator" | "whatsapp_export" | "wa_cloud";
+  seen: number;
+  used: number;
+  lastMessageAt: number;
 }
 
-export interface CastMember {
-  key: string;
+export interface Person {
+  id: string;
   name: string;
   role: string;
+  schoolId: string | null;
+  school: string | null;
 }
 
-export interface BoardIssue {
+export interface StoredMessage {
   id: string;
-  title: string;
-  kind: string;
-  status: string;
-  severity: string;
-  /** '' when no feature. */
-  feature: string;
-  updatedAt: number;
-  messages: number;
-  schools: string[];
-  merged: number;
-  /** '' when nobody is assigned. */
-  owner: string;
-  priorityRank: number | null;
+  groupId: string;
+  ts: number;
+  senderName: string;
+  text: string;
+  hasMedia: boolean;
+  type: MessageType;
+  sentiment: Sentiment;
+  evidence: Array<{ kind: string; issueId: string; title: string }>;
 }
 
-export interface IssueDetail {
+export interface TicketDetail {
   issue: {
     id: string;
     title: string;
     summary: string;
     kind: string;
-    status: string;
+    status: TicketStatus;
     severity: string;
     createdAt: number;
+    feature: string;
+    firstResponseAt: number;
+    resolvedAt: number;
+    escalated: boolean;
+    escalationNote: string;
+    escalatedBy: string;
     mergedTitles: string[];
     followUps: string[];
   };
@@ -126,15 +281,16 @@ export interface IssueDetail {
         commits: Array<{ sha: string; message: string; url: string; author: string; ts: number }>;
       }
     | undefined;
-  messages: Array<{ id: string; text: string; ts: number; hasMedia: boolean; kind: string; sender: string; school: string | null }>;
+  pattern: { id: string; title: string; otherClients: number; statuses: string[]; pullRequests: Array<{ number: number | null; title: string; url: string; state: string }> } | null;
+  messages: Array<{ id: string; text: string; ts: number; hasMedia: boolean; kind: string; sentiment: Sentiment | ""; sender: string; school: string | null }>;
   history: Array<{ from: string; to: string; at: number; confidence: number; by: string; messageId: string | null; because: string | null }>;
   impact: Array<{ schoolId: string; school: string; hasReported: boolean }>;
   dependentCode: Array<{ file: string; feature: string | null }>;
 }
 
-export interface FollowUpsResponse {
+export interface FollowUps {
   now: number;
-  followUps: Array<{ id: string; text: string; dueAt: number; status: string; owner: string; issue: string | null; sourceMessage: string | null }>;
+  followUps: Array<{ id: string; text: string; dueAt: number; status: string; owner: string; issueId: string | null; issue: string | null; sourceMessage: string | null }>;
   reminders: Array<{ id: string; kind: string; sentAt: number; text: string; followUp: string; to: string }>;
   decisions: Array<{ id: string; text: string; ts: number; by: string; messageId: string; feature: string | null }>;
 }
@@ -150,92 +306,205 @@ export interface Answer {
   graphPath: { nodeIds: string[] };
   queriesRun: Array<{ id: string; title: string; cypher: string }>;
   toolCalls: Array<{ tool: string; args: unknown }>;
+  /** What the AI stored in the graph from this turn. */
+  remembered?: string[];
 }
 
-/** One question and its answer inside an Ask conversation. */
 export interface Turn {
   id: string;
   question: string;
   askedAt: number;
+  /** Who asked (or added) it. */
+  askedBy?: string;
+  /** A question with the agent's answer, or information someone added to the graph. */
+  kind?: "question" | "note";
   answer: Answer;
 }
 
-/** An Ask conversation, remembered in the project's graph. */
 export interface ConversationSummary {
   id: string;
   title: string;
   startedAt: number;
   updatedAt: number;
   turnCount: number;
+  createdBy: string;
+  lastBy: string;
+  clientIds: string[];
+}
+
+/** A conversation in the shared list: "hq" for across clients, else the client's id. */
+export interface SharedConversation extends ConversationSummary {
+  scope: string;
+  scopeName: string;
+}
+
+export interface SecretSetting {
+  configured: boolean;
+  source: "app" | "env" | null;
+  hint: string | null;
+}
+
+export interface Settings {
+  anthropicApiKey: SecretSetting;
+  githubToken: SecretSetting;
+  githubWebhookSecret: SecretSetting;
+  fastModel: string;
+  smartModel: string;
+  anthropicWorkspaceId: string;
+  whatsappAccessToken: SecretSetting;
+  whatsappAppSecret: SecretSetting;
+  whatsappVerifyToken: SecretSetting;
+  whatsappPhoneNumberId: string;
+  whatsappHubGroupId: string;
 }
 
 export type PreparedKind = "issue" | "greeting" | "question" | "promise" | "fixed";
 
+export interface ClientInput {
+  name: string;
+  type: ClientType;
+  plan: Plan;
+  city: string;
+  products: string[];
+  agentId: string;
+  aliases?: string[];
+  deployments?: Deployment[];
+}
+
+export type SettingKey =
+  | "anthropicApiKey"
+  | "githubToken"
+  | "githubWebhookSecret"
+  | "fastModel"
+  | "smartModel"
+  | "anthropicWorkspaceId"
+  | "whatsappAccessToken"
+  | "whatsappAppSecret"
+  | "whatsappVerifyToken"
+  | "whatsappPhoneNumberId"
+  | "whatsappHubGroupId";
+
+// ─── Transport ───────────────────────────────────────────────────────────────
+
+/** Called when the server says the session ended, so the app can show the login screen. */
+let onSignedOut: () => void = () => undefined;
+export function whenSignedOut(callback: () => void): void {
+  onSignedOut = callback;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, init);
+  const response = await fetch(`/api${path}`, { credentials: "same-origin", ...init });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((body as { error?: string }).error ?? `Request failed: ${response.status}`);
+  if (response.status === 401 && !path.startsWith("/auth/")) onSignedOut();
+  if (!response.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${response.status})`);
   return body as T;
 }
 
 const send = <T>(method: string, path: string, body?: unknown) =>
   request<T>(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
 
-/** App-level calls: settings and the list of projects. */
-export const appApi = {
-  status: () => request<AppStatus>("/status"),
+// ─── The API ─────────────────────────────────────────────────────────────────
+
+export const api = {
+  // Sign-in
+  me: () => request<User>("/auth/me"),
+  logIn: (email: string, password: string) => send<User>("POST", "/auth/login", { email, password }),
+  logOut: () => send("POST", "/auth/logout"),
+  demoAccounts: () => request<{ password: string; accounts: Array<{ name: string; email: string; role: Role }> }>("/auth/demo-accounts"),
+
+  // The desk
+  status: () => request<{ hasApiKey: boolean; githubConfigured: boolean }>("/status"),
+  overview: () => request<Overview>("/overview"),
+  tickets: () => request<Ticket[]>("/tickets"),
+  clients: () => request<ClientSummary[]>("/clients"),
+  patterns: () => request<Pattern[]>("/patterns"),
+  analytics: (filter: { client?: string; product?: string } = {}) =>
+    request<Analytics>(`/analytics?${new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as Array<[string, string]>)}`),
+  askHq: (question: string, conversationId?: string) => send<{ conversationId: string; title: string; turn: Turn }>("POST", "/ask", { question, conversationId }),
+  conversations: () => request<SharedConversation[]>("/ask/conversations"),
+  hqConversation: (id: string) => request<{ id: string; title: string; turns: Turn[]; createdBy: string }>(`/ask/conversations/hq/${id}`),
+  deleteHqConversation: (id: string) => request(`/ask/conversations/hq/${id}`, { method: "DELETE" }),
+
+  // Live demo controls
+  live: () => request<{ running: boolean; clock: number }>("/live"),
+  goLive: (paceMs?: number) => send<{ running: boolean; clock: number }>("POST", "/live/start", { paceMs }),
+  pause: () => send<{ running: boolean; clock: number }>("POST", "/live/stop"),
+  playStory: (scenario: string) => send("POST", "/live/story", { scenario }),
+  advanceClock: (hours: number) => send<{ running: boolean; clock: number }>("POST", "/clock/advance", { hours }),
+  restoreDemo: () => send<{ ok: boolean; tickets: number }>("POST", "/demo/restore"),
+
+  // HQ admin
+  addClient: (input: ClientInput) => send<ClientRecord>("POST", "/clients", input),
+  updateClient: (id: string, input: ClientInput) => send("PATCH", `/clients/${id}`, input),
+  removeClient: (id: string) => request(`/clients/${id}`, { method: "DELETE" }),
+  products: () => request<Product[]>("/products"),
+  features: (product: string) => request<Feature[]>(`/products/${product}/features`),
+  repos: () => request<{ githubConfigured: boolean; lastError: string | null; repos: Repo[] }>("/repos"),
+  connectRepo: (repo: string, product: string) =>
+    send<{ repo: string; files: number; features: number; owners: number; featureSource: string }>("POST", "/repos", { repo, product }),
+  removeRepo: (repo: string) => request(`/repos/${repo}`, { method: "DELETE" }),
+  syncRepos: () => send("POST", "/repos/sync"),
+  staff: () => request<StaffMember[]>("/staff"),
+  sla: () => request<SlaPolicy[]>("/sla"),
   settings: () => request<Settings>("/settings"),
-  saveSettings: (changes: Partial<Record<"groqApiKey" | "githubToken" | "githubWebhookSecret" | "fastModel" | "smartModel", string>>) =>
+  saveSettings: (changes: Partial<Record<SettingKey, string>>) =>
     send<Settings>("PUT", "/settings", changes),
-  projects: () => request<Project[]>("/projects"),
-  createProject: (name: string, firstGroup?: { name: string; source: GroupSource }) => send<Project>("POST", "/projects", { name, firstGroup }),
-  renameProject: (id: string, name: string) => send("PATCH", `/projects/${id}`, { name }),
-  deleteProject: (id: string) => request(`/projects/${id}`, { method: "DELETE" }),
+
+  // The central support hub (leads, admins, developers)
+  hub: () => request<{ entries: HubEntry[]; pending: number }>("/hub"),
+  sayInHub: (sender: string, text: string) => send("POST", "/hub/send", { sender, text }),
+  playHubStory: () => send("POST", "/hub/story"),
+  routeHubMessage: (id: string, clientIds: string[]) => send("POST", `/hub/${id}/assign`, { clientIds }),
+  ignoreHubMessage: (id: string) => send("POST", `/hub/${id}/ignore`),
+  importHub: (text: string) => request<{ messages: number }>("/hub/import", { method: "POST", body: text }),
+
+  // WhatsApp (Cloud API) and where clients run
+  whatsapp: () => request<{ configured: boolean; hubGroupId: string; groups: WhatsAppGroup[] }>("/whatsapp"),
+  linkWhatsAppGroup: (waGroupId: string, clientId: string) => send("POST", `/whatsapp/groups/${waGroupId}/link`, { clientId }),
+  useAsHub: (waGroupId: string) => send("POST", `/whatsapp/groups/${waGroupId}/hub`),
+  deployments: () => request<Array<Deployment & { clientId: string; clientName: string }>>("/deployments"),
+
+  /** The desk's live event stream: every client this person can see. */
+  events: (onEvent: (event: DeskEvent) => void, withHistory = true) => {
+    const source = new EventSource(`/api/events${withHistory ? "" : "?history=none"}`);
+    source.onmessage = (message) => onEvent(JSON.parse(message.data));
+    return () => source.close();
+  },
 };
 
-/** Everything inside one project. */
-export function projectApi(project: string) {
-  const p = `/projects/${project}`;
+/** Everything inside one client. */
+export function clientApi(client: string) {
+  const c = `/clients/${client}`;
   return {
-    stats: () => request<Stats>(`${p}/stats`),
-    board: () => request<BoardIssue[]>(`${p}/board`),
-    issue: (id: string) => request<IssueDetail>(`${p}/issues/${id}`),
-    setStatus: (id: string, to: string) => send("POST", `${p}/issues/${id}/status`, { to }),
-    openGithubIssue: (id: string) => send<{ number: number; url: string }>("POST", `${p}/issues/${id}/github`),
-    followUps: () => request<FollowUpsResponse>(`${p}/followups`),
-    graph: () => request<GraphData>(`${p}/graph`),
-    ask: (question: string, conversationId?: string) =>
-      send<{ conversationId: string; title: string; turn: Turn }>("POST", `${p}/ask`, { question, conversationId }),
-    conversations: () => request<ConversationSummary[]>(`${p}/conversations`),
-    conversation: (id: string) => request<{ id: string; title: string; turns: Turn[] }>(`${p}/conversations/${id}`),
-    deleteConversation: (id: string) => request(`${p}/conversations/${id}`, { method: "DELETE" }),
-    reset: () => send("POST", `${p}/reset`),
-
-    groups: () => request<Group[]>(`${p}/groups`),
-    addGroup: (name: string, source: GroupSource) => send<{ id: string }>("POST", `${p}/groups`, { name, source }),
-    renameGroup: (id: string, name: string) => send("PATCH", `${p}/groups/${id}`, { name }),
-    removeGroup: (id: string) => request(`${p}/groups/${id}`, { method: "DELETE" }),
-    importExport: (groupId: string, text: string) => request<{ messages: number }>(`${p}/groups/${groupId}/import`, { method: "POST", body: text }),
-    people: () => request<{ cast: CastMember[] }>(`${p}/people`),
-
-    goLive: (groupId?: string, paceMs?: number) => send<Stats>("POST", `${p}/live/start`, { groupId, paceMs }),
-    pause: () => send<Stats>("POST", `${p}/live/stop`),
-    say: (groupId: string | undefined, sender: string, text: string) => send("POST", `${p}/live/send`, { groupId, sender, text }),
-    sendPrepared: (groupId: string | undefined, kind: PreparedKind, sender?: string) => send("POST", `${p}/live/send`, { groupId, kind, sender }),
-    playStory: (groupId: string | undefined, scenario: string) => send("POST", `${p}/live/story`, { groupId, scenario }),
-    advanceClock: (hours: number) => send<Stats>("POST", `${p}/clock/advance`, { hours }),
-
-    repos: () => request<{ githubConfigured: boolean; lastError: string | null; repos: Repo[] }>(`${p}/repos`),
-    connectRepo: (repo: string) => send<{ repo: string; files: number; features: number; owners: number; featureSource: string }>("POST", `${p}/repos`, { repo }),
-    removeRepo: (repo: string) => request(`${p}/repos/${repo}`, { method: "DELETE" }),
-    syncRepos: () => send("POST", `${p}/repos/sync`),
-
-    events: (onEvent: (event: PipelineEvent) => void) => {
-      const source = new EventSource(`/api${p}/events`);
-      source.onmessage = (message) => onEvent(JSON.parse(message.data));
-      return () => source.close();
-    },
+    summary: () => request<ClientSummary & { sla: SlaPolicy | null; now: number }>(`${c}/summary`),
+    tickets: () => request<Ticket[]>(`${c}/tickets`),
+    ticket: (id: string) => request<TicketDetail>(`${c}/issues/${id}`),
+    setStatus: (id: string, to: TicketStatus) => send("POST", `${c}/issues/${id}/status`, { to }),
+    assign: (id: string, personId: string) => send<{ owner: string }>("POST", `${c}/issues/${id}/assign`, { personId }),
+    escalate: (id: string, note: string) => send("POST", `${c}/issues/${id}/escalate`, { note }),
+    suggestReply: (id: string) => send<{ reply: string; why: string; source: "model" | "template" }>("POST", `${c}/issues/${id}/suggest-reply`),
+    openGithubIssue: (id: string) => send<{ number: number; url: string }>("POST", `${c}/issues/${id}/github`),
+    reply: (text: string) => send<{ sender: string; sentToWhatsApp: boolean }>("POST", `${c}/reply`, { text }),
+    notes: (id: string) => request<TeamNote[]>(`${c}/issues/${id}/notes`),
+    addNote: (id: string, text: string) => send("POST", `${c}/issues/${id}/notes`, { text }),
+    createWhatsAppGroup: () => send<{ waGroupId: string; groupId: string; inviteLink: string | null }>("POST", `${c}/whatsapp/create`),
+    feed: (limit = 200) => request<StoredMessage[]>(`${c}/feed?limit=${limit}`),
+    followUps: () => request<FollowUps>(`${c}/followups`),
+    graph: () => request<GraphData>(`${c}/graph`),
+    people: () => request<{ people: Person[]; cast: Array<{ key: string; name: string; role: string }> }>(`${c}/people`),
+    groups: () => request<Group[]>(`${c}/groups`),
+    addGroup: (name: string, source: Group["source"]) => send<{ id: string }>("POST", `${c}/groups`, { name, source }),
+    renameGroup: (id: string, name: string) => send("PATCH", `${c}/groups/${id}`, { name }),
+    removeGroup: (id: string) => request(`${c}/groups/${id}`, { method: "DELETE" }),
+    importExport: (groupId: string, text: string) => request<{ messages: number }>(`${c}/groups/${groupId}/import`, { method: "POST", body: text }),
+    say: (sender: string, text: string) => send<{ sender: string }>("POST", `${c}/send`, { sender, text }),
+    sendPrepared: (kind: PreparedKind, sender?: string) => send<{ sender: string }>("POST", `${c}/send`, { kind, sender }),
+    reset: () => send("POST", `${c}/reset`),
+    ask: (question: string, conversationId?: string) => send<{ conversationId: string; title: string; turn: Turn }>("POST", `${c}/ask`, { question, conversationId }),
+    conversations: () => request<ConversationSummary[]>(`${c}/conversations`),
+    conversation: (id: string) => request<{ id: string; title: string; turns: Turn[]; createdBy: string }>(`${c}/conversations/${id}`),
+    deleteConversation: (id: string) => request(`${c}/conversations/${id}`, { method: "DELETE" }),
   };
 }
 
-export type ProjectApi = ReturnType<typeof projectApi>;
+export type ClientApi = ReturnType<typeof clientApi>;

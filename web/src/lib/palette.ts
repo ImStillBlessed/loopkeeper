@@ -1,57 +1,91 @@
 /**
- * The colour language. One colour per kind of thing, used everywhere:
- * chat tags, issue sheets, and the points on the globe.
+ * What each status, severity, SLA state and kind of message looks like. Colours are CSS variables
+ * from index.css, so light and dark mode both work. `tone` picks a Badge style.
  */
-export const COLORS = {
-  coral: "#FF6B6B",
-  sunflower: "#FFC845",
-  sky: "#5AC8FA",
-  mint: "#4CD7A5",
-  lilac: "#B39DFF",
-  muted: "#9A9AA3",
-} as const;
+export type Tone = "red" | "amber" | "green" | "blue" | "violet" | "sky" | "neutral" | "navy";
 
-/** Graph node label → colour. */
-export const NODE_COLORS: Record<string, string> = {
-  Issue: COLORS.coral,
-  School: COLORS.sunflower,
-  FollowUp: COLORS.sunflower,
-  Person: COLORS.sky,
-  Message: COLORS.mint,
-  Decision: COLORS.mint,
-  Feature: COLORS.lilac,
-  CodeFile: COLORS.lilac,
-  Group: COLORS.sky,
-  Question: "#F5A3D7",
-  StatusChange: "#6E6E78",
-  Reminder: "#6E6E78",
+export const STATUS: Record<string, { label: string; tone: Tone }> = {
+  open: { label: "Open", tone: "red" },
+  in_progress: { label: "In progress", tone: "sky" },
+  possibly_resolved: { label: "Awaiting client", tone: "violet" },
+  resolved: { label: "Resolved", tone: "green" },
+  merged: { label: "Merged", tone: "neutral" },
 };
 
-/** Friendly names for the globe legend. */
-export const NODE_NAMES: Array<{ label: string; name: string; color: string }> = [
-  { label: "Issue", name: "Issues", color: COLORS.coral },
-  { label: "School", name: "Schools & promises", color: COLORS.sunflower },
-  { label: "Person", name: "People", color: COLORS.sky },
-  { label: "Message", name: "Messages & decisions", color: COLORS.mint },
-  { label: "Feature", name: "Features & code", color: COLORS.lilac },
+export const SEVERITY: Record<string, { label: string; tone: Tone; rank: number }> = {
+  critical: { label: "Critical", tone: "red", rank: 0 },
+  high: { label: "High", tone: "red", rank: 1 },
+  medium: { label: "Medium", tone: "amber", rank: 2 },
+  low: { label: "Low", tone: "neutral", rank: 3 },
+};
+
+export const SLA: Record<string, { label: string; tone: Tone }> = {
+  breached: { label: "Breached", tone: "red" },
+  due_soon: { label: "Due soon", tone: "amber" },
+  on_track: { label: "On track", tone: "green" },
+  met: { label: "Met", tone: "neutral" },
+  missed: { label: "Missed", tone: "neutral" },
+};
+
+export const HEALTH: Record<string, { label: string; tone: Tone; color: string }> = {
+  healthy: { label: "Healthy", tone: "green", color: "var(--green)" },
+  watch: { label: "Watch", tone: "amber", color: "var(--amber)" },
+  at_risk: { label: "At risk", tone: "red", color: "var(--red)" },
+};
+
+export const KIND: Record<string, string> = {
+  bug: "Problem",
+  feature_request: "Request",
+  question: "Question",
+  promise: "Promise",
+  resolution: "Fixed",
+  status_update: "Update",
+  decision: "Decision",
+};
+
+export const MOOD: Record<string, { label: string; tone: Tone }> = {
+  frustrated: { label: "Frustrated", tone: "red" },
+  concerned: { label: "Concerned", tone: "amber" },
+  calm: { label: "Calm", tone: "neutral" },
+};
+
+export const PLAN: Record<string, string> = { premium: "Premium", standard: "Standard" };
+export const CLIENT_TYPE: Record<string, string> = { school: "School", lecture_centre: "Lecture centre" };
+export const ROLE: Record<string, string> = { admin: "Admin", lead: "Support lead", agent: "Support agent", developer: "Developer" };
+
+export const PRODUCT_NAMES: Record<string, string> = {
+  sms_v1: "Ednovax SMS v1",
+  ednovax: "Ednovax",
+};
+
+/** Graph node label → colour on the network view (works on both themes). */
+export const NODE_COLORS: Record<string, string> = {
+  Issue: "#D2402C",
+  School: "#B0761A",
+  FollowUp: "#E0A63A",
+  Person: "#1348E6",
+  Message: "#1A7F5A",
+  Decision: "#2FA57A",
+  Feature: "#6B4FD8",
+  CodeFile: "#8D7BE0",
+  Group: "#3B6CF0",
+  Question: "#C25BA8",
+  Conversation: "#C25BA8",
+  StatusChange: "#8A8F9C",
+  Reminder: "#8A8F9C",
+};
+
+export const NODE_NAMES: Array<{ label: string; name: string }> = [
+  { label: "Issue", name: "Tickets" },
+  { label: "Person", name: "People" },
+  { label: "Message", name: "Messages" },
+  { label: "Feature", name: "Features" },
+  { label: "CodeFile", name: "Code" },
+  { label: "FollowUp", name: "Promises" },
 ];
 
-/** What each kind of chat message is, in plain words, with its colour. */
-export const MESSAGE_KINDS: Record<string, { label: string; color: string }> = {
-  bug: { label: "Problem", color: COLORS.coral },
-  feature_request: { label: "Request", color: COLORS.lilac },
-  question: { label: "Question", color: COLORS.sky },
-  promise: { label: "Promise", color: COLORS.sunflower },
-  resolution: { label: "Fixed", color: COLORS.mint },
-  status_update: { label: "Update", color: COLORS.muted },
-  decision: { label: "Decision", color: COLORS.mint },
+export const TENANCY: Record<string, { label: string; hint: string }> = {
+  own_repo: { label: "Own repo", hint: "The school has a repository of its own" },
+  branch: { label: "Branch", hint: "Deployed from its own branch of a shared repository" },
+  multi_tenant: { label: "Multi-tenant", hint: "One of many tenants in a shared codebase and database" },
 };
-
-export const STATUS = {
-  open: { label: "Open", color: COLORS.coral },
-  in_progress: { label: "Being worked on", color: COLORS.sky },
-  possibly_resolved: { label: "Check with school", color: COLORS.sunflower },
-  resolved: { label: "Resolved", color: COLORS.mint },
-} as const;
-
-export type StatusKey = keyof typeof STATUS;

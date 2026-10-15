@@ -2,7 +2,7 @@ import type { Graph } from "falkordb";
 
 /**
  * Every Cypher query Loopkeeper runs, in one place, each with a stable id.
- *   P*  projects, WhatsApp groups and connected repos
+ *   P*  the client, its WhatsApp groups (this file is the per-client graph; HQ queries are in hq-queries.ts)
  *   S*  seed the static world (people, schools, features, code)
  *   IX* index a GitHub repository (files, features, owners, imports)
  *   GH* GitHub activity (issues, pull requests, commits)
@@ -16,7 +16,7 @@ export interface NamedQuery {
   cypher: string;
 }
 
-const query = (id: string, title: string, cypher: string): NamedQuery => ({ id, title, cypher });
+export const query = (id: string, title: string, cypher: string): NamedQuery => ({ id, title, cypher });
 
 /*
  * FalkorDB note: grouping an aggregation (count/collect) by a key that is null (a missing property, or a
@@ -37,15 +37,15 @@ export async function run<T = Record<string, unknown>>(
   return reply.data ?? [];
 }
 
-// ─── Projects, groups, repos ─────────────────────────────────────────────────
+// ─── The client, its groups, repos ───────────────────────────────────────────
 
-export const P1_PROJECT = query("P1", "Create or rename the project this graph belongs to", `
-  MERGE (p:Project {id: $id})
+export const P1_CLIENT = query("P1", "Create or rename the client this graph belongs to", `
+  MERGE (p:Client {id: $id})
     ON CREATE SET p.seen = 0, p.ignored = 0, p.clock = 0, p.createdAt = $ts
   SET p.name = $name`);
 
-export const P2_PROJECT_SUMMARY = query("P2", "Project name, counters, and how many groups and repos it has", `
-  MATCH (p:Project)
+export const P2_CLIENT_SUMMARY = query("P2", "Client name, counters, and how many groups it has", `
+  MATCH (p:Client)
   OPTIONAL MATCH (g:Group)
   WITH p, count(DISTINCT g) AS groups
   OPTIONAL MATCH (r:Repo)
@@ -132,7 +132,7 @@ export const S7_IMPORTS = query("S7", "Code import graph", `
 // ─── Ingest writes ───────────────────────────────────────────────────────────
 
 export const W1_COUNT_MESSAGE = query("W1", "Count a message (noise is only ever counted, never stored)", `
-  MATCH (p:Project), (g:Group {id: $groupId})
+  MATCH (p:Client), (g:Group {id: $groupId})
   SET p.seen = p.seen + 1,
       p.ignored = p.ignored + $ignored,
       p.clock = CASE WHEN $ts > p.clock THEN $ts ELSE p.clock END,
@@ -146,7 +146,7 @@ export const W2_MESSAGE = query("W2", "Store a relevant message and who sent it"
   MERGE (p)-[:MEMBER_OF]->(g)
   MERGE (m:Message {id: $id})
     ON CREATE SET m.text = $text, m.ts = $ts, m.type = $type, m.hasMedia = $hasMedia,
-                  m.embedding = vecf32($embedding)
+                  m.sentiment = $sentiment, m.embedding = vecf32($embedding)
   MERGE (p)-[:SENT]->(m)
   MERGE (m)-[:IN]->(g)`);
 
@@ -181,13 +181,45 @@ export const W6_CHANGE_STATUS = query("W6", "Change an issue's status, recording
   CREATE (sc:StatusChange {id: $id, from: i.status, to: $to, at: $ts, confidence: $confidence})
   CREATE (i)-[:HAS_CHANGE]->(sc)
   CREATE (m)-[:CAUSED]->(sc)
-  SET i.status = $to, i.updatedAt = $ts`);
+  SET i.status = $to, i.updatedAt = $ts,
+      i.resolvedAt = CASE WHEN $to = 'resolved' THEN $ts ELSE i.resolvedAt END`);
 
 export const W7_CHANGE_STATUS_BY_HUMAN = query("W7", "Change an issue's status from outside the chat (dashboard, GitHub)", `
   MATCH (i:Issue {id: $issueId})
   CREATE (sc:StatusChange {id: $id, from: i.status, to: $to, at: $ts, by: $by, confidence: 1.0})
   CREATE (i)-[:HAS_CHANGE]->(sc)
-  SET i.status = $to, i.updatedAt = $ts`);
+  SET i.status = $to, i.updatedAt = $ts,
+      i.resolvedAt = CASE WHEN $to = 'resolved' THEN $ts ELSE i.resolvedAt END`);
+
+export const W15_FIRST_RESPONSE = query("W15", "The first time Ednovax staff replied on a ticket (for SLA)", `
+  MATCH (i:Issue {id: $issueId})
+  WHERE i.firstResponseAt IS NULL
+  SET i.firstResponseAt = $ts`);
+
+export const W16_UNASSIGN = query("W16", "Take an issue off whoever it is assigned to", `
+  MATCH (i:Issue {id: $issueId})-[r:ASSIGNED_TO]->(:Person)
+  DELETE r`);
+
+export const W17_ASSIGN = query("W17", "Assign an issue to a person", `
+  MATCH (i:Issue {id: $issueId}), (p:Person {id: $personId})
+  MERGE (i)-[:ASSIGNED_TO]->(p)
+  SET i.updatedAt = $ts
+  RETURN p.name AS name`);
+
+export const W18_ESCALATE = query("W18", "Escalate an issue: flag it for the lead and raise low severities to high", `
+  MATCH (i:Issue {id: $issueId})
+  SET i.escalated = true, i.escalatedAt = $ts, i.escalatedBy = $by, i.escalationNote = $note, i.updatedAt = $ts,
+      i.severity = CASE WHEN i.severity IN ['low', 'medium'] THEN 'high' ELSE i.severity END
+  RETURN i.title AS title`);
+
+export const W19_TEAM_NOTE = query("W19", "A team note on a ticket: developers and support talking, never sent to the client", `
+  MATCH (i:Issue {id: $issueId})
+  CREATE (n:Note {id: $id, text: $text, by: $by, role: $role, ts: $ts})-[:ON]->(i)`);
+
+export const Q19_TEAM_NOTES = query("Q19", "The team's notes on a ticket", `
+  MATCH (n:Note)-[:ON]->(:Issue {id: $issueId})
+  RETURN n.id AS id, n.text AS text, n.by AS by, n.role AS role, n.ts AS ts
+  ORDER BY ts`);
 
 export const W8_LINK_SIMILAR = query("W8", "Mark two issues as possible duplicates", `
   MATCH (a:Issue {id: $a}), (b:Issue {id: $b})
@@ -322,7 +354,7 @@ export const C12_PEOPLE = query("C12", "Everyone the graph knows, with role and 
 // ─── Reads for the dashboard and the agent ───────────────────────────────────
 
 export const Q0_STATS = query("Q0", "Ingest counters", `
-  MATCH (p:Project)
+  MATCH (p:Client)
   OPTIONAL MATCH (m:Message)
   RETURN p.seen AS seen, p.ignored AS ignored, count(m) AS used, p.clock AS clock`);
 
@@ -420,6 +452,13 @@ export const Q10_SEARCH_ISSUES = query("Q10", "Semantic search over all issues (
   RETURN node.id AS id, node.title AS title, node.status AS status, score AS distance
   ORDER BY distance`);
 
+export const Q20_SEARCH_MESSAGES = query("Q20", "Semantic search over stored messages and team notes (vector index)", `
+  CALL db.idx.vector.queryNodes('Message', 'embedding', 8, vecf32($embedding))
+  YIELD node, score
+  MATCH (p:Person)-[:SENT]->(node)-[:IN]->(g:Group)
+  RETURN node.id AS id, node.text AS text, node.ts AS ts, p.name AS sender, g.name AS place, score AS distance
+  ORDER BY distance`);
+
 export const Q11_BOARD = query("Q11", "Board: every canonical issue with reporters, schools and owner", `
   MATCH (i:Issue)
   WHERE i.status <> 'merged'
@@ -431,14 +470,16 @@ export const Q11_BOARD = query("Q11", "Board: every canonical issue with reporte
   RETURN i.id AS id, i.title AS title, coalesce(i.kind, 'bug') AS kind, i.status AS status, coalesce(i.severity, 'medium') AS severity,
          coalesce(i.featureKey, '') AS feature, coalesce(i.createdAt, 0) AS createdAt, coalesce(i.updatedAt, 0) AS updatedAt,
          count(DISTINCT m) AS messages, collect(DISTINCT s.name) AS schools,
-         count(DISTINCT dup) AS merged, coalesce(owner.name, '') AS owner
+         count(DISTINCT dup) AS merged, coalesce(owner.name, '') AS owner,
+         coalesce(i.firstResponseAt, 0) AS firstResponseAt, coalesce(i.resolvedAt, 0) AS resolvedAt,
+         coalesce(i.escalated, false) AS escalated, collect(DISTINCT m.sentiment) AS moods
   ORDER BY updatedAt DESC`);
 
 export const Q12_EVIDENCE = query("Q12", "The messages behind an issue", `
   MATCH (m:Message)-[e:EVIDENCE_OF]->(i:Issue {id: $issueId})
   MATCH (p:Person)-[:SENT]->(m)
   OPTIONAL MATCH (p)-[:WORKS_AT]->(s:School)
-  RETURN m.id AS id, m.text AS text, m.ts AS ts, m.hasMedia AS hasMedia, e.kind AS kind,
+  RETURN m.id AS id, m.text AS text, m.ts AS ts, m.hasMedia AS hasMedia, e.kind AS kind, coalesce(m.sentiment, '') AS sentiment,
          p.name AS sender, s.name AS school
   ORDER BY ts`);
 
@@ -449,7 +490,10 @@ export const Q13_ISSUE = query("Q13", "One issue's own fields and merged duplica
   RETURN i.id AS id, i.title AS title, coalesce(i.summary, '') AS summary, coalesce(i.kind, 'bug') AS kind, i.status AS status,
          coalesce(i.severity, 'medium') AS severity, coalesce(i.createdAt, 0) AS createdAt,
          collect(DISTINCT dup.title) AS mergedTitles, collect(DISTINCT dup.id) AS mergedIds,
-         collect(DISTINCT f.text) AS followUps`);
+         collect(DISTINCT f.text) AS followUps,
+         coalesce(i.featureKey, '') AS feature, coalesce(i.firstResponseAt, 0) AS firstResponseAt,
+         coalesce(i.resolvedAt, 0) AS resolvedAt, coalesce(i.escalated, false) AS escalated,
+         coalesce(i.escalationNote, '') AS escalationNote, coalesce(i.escalatedBy, '') AS escalatedBy`);
 
 export const Q14_MESSAGES = query("Q14", "Messages by id (for source chips)", `
   MATCH (p:Person)-[:SENT]->(m:Message)
@@ -470,13 +514,13 @@ export const Q16_DECISIONS = query("Q16", "Decisions and where they came from", 
 
 export const Q17_GRAPH_NODES = query("Q17", "Whole tenant graph: nodes (for the graph view)", `
   MATCH (n)
-  WHERE NOT n:Project AND NOT n:Repo
+  WHERE NOT n:Client AND NOT n:Repo
   RETURN coalesce(n.id, n.key, n.path) AS id, labels(n)[0] AS label,
          coalesce(n.title, n.name, n.path, n.text, n.to) AS name, n.status AS status`);
 
 export const Q18_GRAPH_EDGES = query("Q18", "Whole tenant graph: relationships (for the graph view)", `
   MATCH (a)-[r]->(b)
-  WHERE NOT a:Project AND NOT b:Project AND NOT a:Repo AND NOT b:Repo
+  WHERE NOT a:Client AND NOT b:Client AND NOT a:Repo AND NOT b:Repo
   RETURN coalesce(a.id, a.key, a.path) AS source, coalesce(b.id, b.key, b.path) AS target, type(r) AS type`);
 
 // ─── Repository index ────────────────────────────────────────────────────────
@@ -580,12 +624,12 @@ export const GH10_ISSUE_STATUS = query("GH10", "Current status of an issue (foll
 
 export const R1_RESET_CHAT = query("R1", "Forget everything learned from chats and GitHub; keep the project's setup", `
   OPTIONAL MATCH (n)
-  WHERE n:Message OR n:Issue OR n:FollowUp OR n:Decision OR n:StatusChange OR n:Reminder
+  WHERE n:Message OR n:Issue OR n:FollowUp OR n:Decision OR n:StatusChange OR n:Reminder OR n:Note
      OR n:PullRequest OR n:Commit OR n:Question OR n:Conversation OR (n:Person AND n.role = 'unknown')
   DETACH DELETE n
   WITH count(*) AS removed
-  MATCH (p:Project)
-  SET p.seen = 0, p.ignored = 0
+  MATCH (p:Client)
+  SET p.seen = 0, p.ignored = 0, p.clock = 0
   WITH p
   OPTIONAL MATCH (g:Group)
   SET g.seen = 0
@@ -595,13 +639,8 @@ export const R1_RESET_CHAT = query("R1", "Forget everything learned from chats a
 
 // ─── Managing projects, groups and repos ─────────────────────────────────────
 
-export const M1_MIGRATE_TENANT = query("M1", "Upgrade graphs created before projects existed (Tenant → Project)", `
-  MATCH (t:Tenant)
-  SET t:Project
-  REMOVE t:Tenant`);
-
-export const M2_RENAME_PROJECT = query("M2", "Rename the project", `
-  MATCH (p:Project)
+export const M2_RENAME_CLIENT = query("M2", "Rename the client", `
+  MATCH (p:Client)
   SET p.name = $name`);
 
 export const M3_RENAME_GROUP = query("M3", "Rename a WhatsApp group", `
@@ -629,7 +668,7 @@ export const F1_RECENT_MESSAGES = query("F1", "The latest stored messages with w
   LIMIT $limit
   OPTIONAL MATCH (m)-[e:EVIDENCE_OF]->(i:Issue)
   RETURN m.id AS id, g.id AS groupId, m.ts AS ts, p.name AS senderName, coalesce(m.text, '') AS text,
-         coalesce(m.hasMedia, false) AS hasMedia, coalesce(m.type, 'status_update') AS type,
+         coalesce(m.hasMedia, false) AS hasMedia, coalesce(m.type, 'status_update') AS type, coalesce(m.sentiment, 'calm') AS sentiment,
          collect(CASE WHEN i IS NULL THEN null ELSE {kind: e.kind, issueId: i.id, title: i.title} END) AS evidence`);
 
 export const F2_RECENT_REMINDERS = query("F2", "Reminders the bot posted, for the restored feed", `
@@ -641,11 +680,12 @@ export const F2_RECENT_REMINDERS = query("F2", "Reminders the bot posted, for th
 // ─── Ask conversations (the agent's memory of what it was asked) ─────────────
 
 export const CV1_CREATE_CONVERSATION = query("CV1", "Start a conversation", `
-  CREATE (:Conversation {id: $id, title: $title, startedAt: $ts, updatedAt: $ts, turnCount: 0, turnsJson: '[]'})`);
+  CREATE (:Conversation {id: $id, title: $title, startedAt: $ts, updatedAt: $ts, turnCount: 0, turnsJson: '[]', createdBy: $by, lastBy: $by, clientIds: $clientIds})`);
 
 export const CV2_SAVE_TURNS = query("CV2", "Save a conversation's turns (questions and answers, in order)", `
   MATCH (c:Conversation {id: $id})
-  SET c.turnsJson = $turnsJson, c.turnCount = $turnCount, c.updatedAt = $ts`);
+  SET c.turnsJson = $turnsJson, c.turnCount = $turnCount, c.updatedAt = $ts, c.lastBy = $by,
+      c.clientIds = [x IN coalesce(c.clientIds, []) WHERE NOT x IN $clientIds] + $clientIds`);
 
 export const CV3_LINK_CONVERSATION = query("CV3", "Link a conversation to the messages, issues and people its answers used", `
   MATCH (c:Conversation {id: $id})
@@ -655,13 +695,14 @@ export const CV3_LINK_CONVERSATION = query("CV3", "Link a conversation to the me
 
 export const CV4_CONVERSATIONS = query("CV4", "Recent conversations", `
   MATCH (c:Conversation)
-  RETURN c.id AS id, c.title AS title, c.startedAt AS startedAt, c.updatedAt AS updatedAt, c.turnCount AS turnCount
+  RETURN c.id AS id, c.title AS title, c.startedAt AS startedAt, c.updatedAt AS updatedAt, c.turnCount AS turnCount,
+         coalesce(c.createdBy, '') AS createdBy, coalesce(c.lastBy, '') AS lastBy, coalesce(c.clientIds, []) AS clientIds
   ORDER BY updatedAt DESC
   LIMIT $limit`);
 
 export const CV5_CONVERSATION = query("CV5", "One conversation with all its turns", `
   MATCH (c:Conversation {id: $id})
-  RETURN c.id AS id, c.title AS title, c.turnsJson AS turnsJson`);
+  RETURN c.id AS id, c.title AS title, c.turnsJson AS turnsJson, coalesce(c.clientIds, []) AS clientIds, coalesce(c.createdBy, '') AS createdBy`);
 
 export const CV6_DELETE_CONVERSATION = query("CV6", "Delete a conversation", `
   MATCH (c:Conversation {id: $id})
@@ -677,3 +718,48 @@ export const CV8_DELETE_LEGACY_QUESTIONS = query("CV8", "Remove migrated questio
   MATCH (q:Question)
   DETACH DELETE q`);
 
+
+// ─── Product reference, copied from HQ into a client graph ───────────────────
+// Product data (features, code, owners) isn't client-sensitive. Each client graph keeps a read-only
+// copy for the products it uses, so "ticket → feature → code → owner" works inside the client's graph.
+
+export const RP1_FEATURES = query("RP1", "Product features this client uses", `
+  UNWIND $features AS f
+  MERGE (n:Feature {key: f.key})
+  SET n.name = f.name, n.description = f.description, n.product = f.product
+  WITH n
+  MATCH (s:School)
+  MERGE (s)-[:USES]->(n)`);
+
+export const RP2_FILES = query("RP2", "Code files behind those features", `
+  UNWIND $files AS f
+  MERGE (c:CodeFile {id: f.id})
+  SET c.path = f.path, c.repo = f.repo
+  WITH c, f
+  MATCH (feature:Feature {key: f.feature})
+  MERGE (feature)-[:IMPLEMENTED_IN]->(c)`);
+
+export const RP3_OWNERS = query("RP3", "Who owns those files", `
+  UNWIND $owners AS o
+  MERGE (p:Person {id: o.id})
+    ON CREATE SET p.name = o.name, p.role = 'developer'
+  WITH p, o
+  MATCH (c:CodeFile {id: o.fileId})
+  MERGE (p)-[:OWNS]->(c)`);
+
+// ─── Insights (SLA, health, analytics) ───────────────────────────────────────
+
+export const I1_SENTIMENT_SINCE = query("I1", "How many work messages sounded frustrated or concerned since a time", `
+  MATCH (m:Message)
+  WHERE m.ts >= $since AND m.sentiment IN ['frustrated', 'concerned']
+  RETURN m.sentiment AS sentiment, count(m) AS messages`);
+
+export const I2_LAST_STAFF_REPLY = query("I2", "When Ednovax staff last wrote in this client's groups", `
+  MATCH (p:Person)-[:SENT]->(m:Message)
+  WHERE p.role IN ['developer', 'support']
+  RETURN max(m.ts) AS lastReply`);
+
+export const I3_LAST_CLIENT_MESSAGE = query("I3", "When the client last wrote anything that mattered", `
+  MATCH (p:Person)-[:SENT]->(m:Message)
+  WHERE NOT p.role IN ['developer', 'support']
+  RETURN max(m.ts) AS lastMessage`);

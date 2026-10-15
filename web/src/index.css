@@ -1,50 +1,126 @@
 @import "tailwindcss";
 
 /*
- * Loopkeeper theme: Material dark on a soft ink base (pure black was too harsh).
- * Surfaces are lifted with white overlays (Material elevation), never grey boxes.
- * Accents are a colour language: each one always means the same kind of thing.
+ * Ednovax Support Desk: a sub-brand of Ednovax. It keeps the Ednovax logo, navy ink and
+ * Bricolage Grotesque headings, and adds its own feel: ash and white surfaces, an electric blue,
+ * bright status colours, soft rounded corners and generous spacing.
+ * Every colour is a variable so dark mode only swaps values.
  */
-@theme {
-  --font-sans: "Prompt", ui-sans-serif, system-ui, sans-serif;
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-  --color-background: #121217;
-  --color-foreground: #f5f5f7;
-  --color-muted: #9a9aa3;
-  --color-faint: #5c5c66;
+:root {
+  /* Ash and white surfaces */
+  --paper: #f4f6f9;
+  --paper-2: #eceff4;
+  --card: #ffffff;
+  /* Ink keeps the Ednovax navy, so the desk still belongs to the family */
+  --ink: #0e1f55;
+  --ink-2: #39466b;
+  --muted: #667085;
+  --faint: #98a2b3;
+  --line: #e2e6ee;
+  --line-soft: #edf0f5;
+  /* A brighter, electric blue for the desk */
+  --primary: #1f6bff;
+  --primary-ink: #ffffff;
+  --primary-soft: #e9f1ff;
+  --red: #f04438;
+  --red-soft: #feeceb;
+  --flourish: #ff5a47;
+  --green: #12b76a;
+  --green-soft: #e6f8ef;
+  --amber: #f79009;
+  --amber-soft: #fff4e5;
+  --violet: #7a5af8;
+  --violet-soft: #f1edff;
+  --sky: #0ba5ec;
+  --sky-soft: #e6f6fe;
+  --pink: #ee46bc;
+  --pink-soft: #fdeaf7;
+  --navy: #0e1f55;
+  --navy-2: #1a2d6b;
+  --navy-line: #2a3d7a;
+  --navy-ink: #e9ecf5;
+  --navy-muted: #a9b4d6;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 4px 16px -6px rgb(16 24 40 / 0.08);
+  --shadow-lg: 0 12px 40px -8px rgb(16 24 40 / 0.22);
+  color-scheme: light;
+}
 
-  /* Material elevation overlays */
-  --color-surface-1: rgb(255 255 255 / 0.05);
-  --color-surface-2: rgb(255 255 255 / 0.08);
-  --color-surface-3: rgb(255 255 255 / 0.12);
-  --color-hairline: rgb(255 255 255 / 0.08);
+[data-theme="dark"] {
+  --paper: #0b1020;
+  --paper-2: #141a2e;
+  --card: #121830;
+  --ink: #eef1f8;
+  --ink-2: #c7cee0;
+  --muted: #98a2bd;
+  --faint: #667090;
+  --line: #232b45;
+  --line-soft: #1b2239;
+  --primary: #4d8bff;
+  --primary-ink: #ffffff;
+  --primary-soft: #16264d;
+  --red: #ff6b5f;
+  --red-soft: #3a1720;
+  --flourish: #ff6b5f;
+  --green: #32d583;
+  --green-soft: #0e2f24;
+  --amber: #fdb022;
+  --amber-soft: #352816;
+  --violet: #9b8afb;
+  --violet-soft: #241d45;
+  --sky: #36bffa;
+  --sky-soft: #0d2a3d;
+  --pink: #f670c7;
+  --pink-soft: #3a1631;
+  --navy: #0e1f55;
+  --navy-2: #1a2d6b;
+  --navy-line: #2a3d7a;
+  --shadow: 0 1px 2px #0000004d, 0 8px 24px -8px #00000080;
+  --shadow-lg: 0 24px 60px -12px #000000b3;
+  color-scheme: dark;
+}
 
-  /* The colour language */
-  --color-coral: #ff6b6b;     /* issues, bugs */
-  --color-sunflower: #ffc845; /* schools, promises */
-  --color-sky: #5ac8fa;       /* people */
-  --color-mint: #4cd7a5;      /* messages, resolved */
-  --color-lilac: #b39dff;     /* features, code, Loopkeeper itself */
+@theme inline {
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 
-  --text-display: 4.5rem;
-  --text-display--line-height: 1.02;
-  --text-headline: 2.75rem;
-  --text-headline--line-height: 1.1;
-  --text-title: 1.75rem;
-  --text-title--line-height: 1.2;
-  --text-lead: 1.25rem;
-  --text-lead--line-height: 1.5;
-  --text-body: 1.0625rem;
-  --text-body--line-height: 1.55;
-  --text-small: 0.9375rem;
-  --text-small--line-height: 1.45;
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-flourish: var(--flourish);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-sky: var(--sky);
+  --color-sky-soft: var(--sky-soft);
+  --color-pink: var(--pink);
+  --color-pink-soft: var(--pink-soft);
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-navy-line: var(--navy-line);
+  --color-navy-ink: var(--navy-ink);
+  --color-navy-muted: var(--navy-muted);
 
-  --radius-pill: 999px;
-  --radius-sheet: 2rem;
-  --radius-card: 1.5rem;
-  --radius-chip: 0.875rem;
-
-  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+  --shadow-card: var(--shadow);
+  --shadow-float: var(--shadow-lg);
+  --radius-card: 16px;
+  --radius-control: 10px;
 }
 
 @layer base {
@@ -54,25 +130,52 @@
     height: 100%;
   }
   body {
-    background: var(--color-background);
-    color: var(--color-foreground);
+    background: var(--paper);
+    color: var(--ink);
     font-family: var(--font-sans);
-    font-size: var(--text-body);
-    line-height: var(--text-body--line-height);
+    font-size: 15px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
   }
   ::selection {
-    background: color-mix(in srgb, var(--color-lilac) 40%, transparent);
+    background: color-mix(in srgb, var(--primary) 25%, transparent);
   }
   :focus-visible {
-    outline: 2px solid var(--color-lilac);
-    outline-offset: 3px;
-    border-radius: 12px;
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+    scrollbar-color: var(--line) transparent;
+  }
+}
+
+@layer components {
+  /* Small section labels: plain sentence case, quieter than the content. */
+  .label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -83,35 +186,26 @@
   to { opacity: 0; }
 }
 @keyframes sheet-in {
-  from { opacity: 0; transform: translateX(48px) scale(0.98); }
+  from { transform: translateX(32px); opacity: 0; }
 }
 @keyframes sheet-out {
-  to { opacity: 0; transform: translateX(32px) scale(0.98); }
+  to { transform: translateX(32px); opacity: 0; }
+}
+@keyframes rise {
+  from { transform: translateY(6px); opacity: 0; }
+}
+@keyframes draw {
+  from { stroke-dashoffset: 1; }
+}
+@keyframes pulse-dot {
+  50% { opacity: 0.35; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
   }
 }
-
-/* Code highlighting (highlight.js classes) in the colour language. */
-.markdown .hljs-keyword,
-.markdown .hljs-built_in,
-.markdown .hljs-selector-tag { color: var(--color-lilac); }
-.markdown .hljs-string,
-.markdown .hljs-attr,
-.markdown .hljs-template-variable { color: var(--color-mint); }
-.markdown .hljs-number,
-.markdown .hljs-literal,
-.markdown .hljs-variable { color: var(--color-sunflower); }
-.markdown .hljs-title,
-.markdown .hljs-function,
-.markdown .hljs-type { color: var(--color-sky); }
-.markdown .hljs-comment,
-.markdown .hljs-quote { color: var(--color-faint); font-style: italic; }
-.markdown .hljs-deletion,
-.markdown .hljs-meta { color: var(--color-coral); }

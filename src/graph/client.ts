@@ -18,31 +18,38 @@ export function getFalkorDB(): Promise<FalkorDB> {
   return connection;
 }
 
-const GRAPH_PREFIX = "lk_";
-
 /**
- * Each project gets its own graph: lk_<project>.
- * FalkorDB keeps graphs fully separate, so one client's data can never leak into another's queries.
+ * Two kinds of graph:
+ *   lk_hq            Ednovax itself: products, code, staff, the client registry, cross-client patterns
+ *   lk_client_<id>   one per client: its WhatsApp groups, contacts, messages, tickets, promises
+ * A client's graph never holds another client's data, so a query can't leak across clients.
  */
-export function projectGraphName(project: string): string {
-  if (!/^[a-z0-9_]+$/.test(project)) {
-    throw new Error(`Invalid project id "${project}": use lowercase letters, digits and underscores`);
+export const HQ_GRAPH = "lk_hq";
+const CLIENT_PREFIX = "lk_client_";
+
+export function clientGraphName(clientId: string): string {
+  if (!/^[a-z0-9_]+$/.test(clientId)) {
+    throw new Error(`Invalid client id "${clientId}": use lowercase letters, digits and underscores`);
   }
-  return `${GRAPH_PREFIX}${project}`;
+  return `${CLIENT_PREFIX}${clientId}`;
 }
 
-export async function getProjectGraph(project: string = config.defaultProject): Promise<Graph> {
-  const db = await getFalkorDB();
-  return db.selectGraph(projectGraphName(project));
+export async function getHqGraph(): Promise<Graph> {
+  return (await getFalkorDB()).selectGraph(HQ_GRAPH);
 }
 
-/** Project ids that have a graph in FalkorDB (test graphs excluded). */
-export async function listProjectIds(): Promise<string[]> {
-  const db = await getFalkorDB();
-  const graphs = await db.list();
-  return graphs
-    .filter((name) => name.startsWith(GRAPH_PREFIX) && !/^lk_(test|smoketest)/.test(name))
-    .map((name) => name.slice(GRAPH_PREFIX.length));
+export async function getClientGraph(clientId: string): Promise<Graph> {
+  return (await getFalkorDB()).selectGraph(clientGraphName(clientId));
+}
+
+/** Client ids that have a graph in FalkorDB. */
+export async function listClientGraphIds(): Promise<string[]> {
+  const graphs = await (await getFalkorDB()).list();
+  return graphs.filter((name) => name.startsWith(CLIENT_PREFIX)).map((name) => name.slice(CLIENT_PREFIX.length));
+}
+
+export async function graphExists(name: string): Promise<boolean> {
+  return (await (await getFalkorDB()).list()).includes(name);
 }
 
 export async function closeFalkorDB(): Promise<void> {

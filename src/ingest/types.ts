@@ -16,6 +16,8 @@ export interface ChatMessage {
   hasMedia: boolean;
   /** Only set by sources that know about quoted replies (exports don't include them). */
   replyToId?: string;
+  /** Staff added this on purpose (from Ask): always kept, never filtered out as small talk. */
+  trusted?: boolean;
 }
 
 export interface ParseStats {

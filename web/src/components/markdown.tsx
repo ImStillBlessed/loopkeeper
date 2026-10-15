@@ -1,4 +1,3 @@
-import type { ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import bash from "highlight.js/lib/languages/bash";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -8,7 +7,6 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import { COLORS } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 
 interface MarkdownProps {
@@ -16,6 +14,7 @@ interface MarkdownProps {
   /** Message ids cited in the answer → their number in the sources list. */
   citations?: Map<string, number>;
   onCite?: () => void;
+  /** Opens a ticket. Without it, ticket ids are shown as plain mono text. */
   onOpenIssue?: (issueId: string) => void;
   className?: string;
 }
@@ -27,9 +26,8 @@ const CITE = "#cite-";
 const ISSUE = "#issue-";
 
 /**
- * Agent answers as rich Markdown: tables, lists, code with highlighting, quotes. Two things are
- * turned into chips first: message citations ([msg_…] → a numbered source) and issue ids
- * (iss_… → opens the issue).
+ * Agent answers as Markdown: tables, lists, code, quotes. Two things become chips first:
+ * message citations ([msg_…] → a numbered source) and ticket ids (iss_… → opens the ticket).
  */
 export function Markdown({ text, citations = new Map(), onCite, onOpenIssue, className }: MarkdownProps) {
   const prepared = text
@@ -42,8 +40,7 @@ export function Markdown({ text, citations = new Map(), onCite, onOpenIssue, cla
         return (
           <button
             onClick={onCite}
-            className="mx-0.5 inline-grid size-6 -translate-y-0.5 place-items-center rounded-full align-middle text-[12px] font-medium text-black"
-            style={{ backgroundColor: COLORS.mint }}
+            className="mx-0.5 inline-grid h-4.5 min-w-4.5 -translate-y-0.5 place-items-center bg-primary px-1 align-middle font-mono text-[10.5px] font-semibold text-primary-ink"
             aria-label={`Source ${String(children)}`}
           >
             {children}
@@ -51,53 +48,51 @@ export function Markdown({ text, citations = new Map(), onCite, onOpenIssue, cla
         );
       }
       if (href.startsWith(ISSUE)) {
+        const id = href.slice(ISSUE.length);
+        if (!onOpenIssue) return <code className="bg-paper-2 px-1 font-mono text-[0.82em] text-ink-2">{children}</code>;
         return (
-          <button
-            onClick={() => onOpenIssue?.(href.slice(ISSUE.length))}
-            className="rounded-chip bg-coral/12 px-2 py-0.5 font-mono text-[0.8em] text-coral transition-colors hover:bg-coral/20"
-            title="Open this issue"
-          >
+          <button onClick={() => onOpenIssue(id)} className="bg-primary-soft px-1.5 py-0.5 font-mono text-[0.8em] text-primary transition-colors hover:bg-primary hover:text-primary-ink" title="Open this ticket">
             {children}
           </button>
         );
       }
       return (
-        <a href={href} target="_blank" rel="noreferrer" className="text-lilac underline decoration-lilac/40 underline-offset-4 hover:decoration-lilac">
+        <a href={href} target="_blank" rel="noreferrer" className="text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary">
           {children}
         </a>
       );
     },
     p: (props) => <p className="my-3 first:mt-0 last:mb-0" {...strip(props)} />,
-    strong: (props) => <strong className="font-medium text-foreground" {...strip(props)} />,
-    em: (props) => <em className="text-foreground/90 italic" {...strip(props)} />,
-    h1: (props) => <h3 className="mt-6 mb-3 text-title font-medium first:mt-0" {...strip(props)} />,
-    h2: (props) => <h3 className="mt-6 mb-3 text-title font-medium first:mt-0" {...strip(props)} />,
-    h3: (props) => <h4 className="mt-5 mb-2 text-lead font-medium first:mt-0" {...strip(props)} />,
-    h4: (props) => <h4 className="mt-5 mb-2 text-lead font-medium first:mt-0" {...strip(props)} />,
-    ul: (props) => <ul className="my-3 flex list-disc flex-col gap-2 pl-6 marker:text-lilac" {...strip(props)} />,
-    ol: (props) => <ol className="my-3 flex list-decimal flex-col gap-2 pl-6 marker:text-muted" {...strip(props)} />,
+    strong: (props) => <strong className="font-semibold text-ink" {...strip(props)} />,
+    em: (props) => <em className="italic" {...strip(props)} />,
+    h1: (props) => <h3 className="mt-6 mb-2 text-[20px] first:mt-0" {...strip(props)} />,
+    h2: (props) => <h3 className="mt-6 mb-2 text-[20px] first:mt-0" {...strip(props)} />,
+    h3: (props) => <h4 className="mt-5 mb-2 text-[17px] first:mt-0" {...strip(props)} />,
+    h4: (props) => <h4 className="mt-5 mb-2 text-[17px] first:mt-0" {...strip(props)} />,
+    ul: (props) => <ul className="my-3 flex list-[square] flex-col gap-1.5 pl-5 marker:text-flourish" {...strip(props)} />,
+    ol: (props) => <ol className="my-3 flex list-decimal flex-col gap-1.5 pl-5 marker:font-mono marker:text-muted" {...strip(props)} />,
     li: (props) => <li className="pl-1" {...strip(props)} />,
-    blockquote: (props) => <blockquote className="my-4 border-l-2 border-mint/60 pl-5 text-muted italic" {...strip(props)} />,
-    hr: () => <hr className="my-6 border-hairline" />,
+    blockquote: (props) => <blockquote className="my-4 border-l-2 border-primary pl-4 text-muted" {...strip(props)} />,
+    hr: () => <hr className="my-6 border-line" />,
     code: ({ className: lang, children }) =>
       lang ? (
-        <code className={cn(lang, "font-mono text-[13px] leading-relaxed")}>{children}</code>
+        <code className={cn(lang, "font-mono text-[12.5px] leading-relaxed")}>{children}</code>
       ) : (
-        <code className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-sunflower">{children}</code>
+        <code className="bg-paper-2 px-1 py-0.5 font-mono text-[0.85em] text-ink-2">{children}</code>
       ),
-    pre: (props) => <pre className="my-4 overflow-x-auto rounded-chip bg-black/50 p-5" {...strip(props)} />,
+    pre: (props) => <pre className="my-4 overflow-x-auto rounded-xl border border-line-soft bg-paper p-4" {...strip(props)} />,
     table: (props) => (
-      <div className="my-5 overflow-x-auto rounded-chip bg-surface-1">
-        <table className="w-full border-collapse text-left text-body" {...strip(props)} />
+      <div className="my-4 overflow-x-auto rounded-xl border border-line">
+        <table className="w-full border-collapse text-left text-[14px]" {...strip(props)} />
       </div>
     ),
-    thead: (props) => <thead className="text-small text-muted" {...strip(props)} />,
-    th: (props) => <th className="border-b border-hairline px-4 py-3 font-medium whitespace-nowrap" {...strip(props)} />,
-    td: (props) => <td className="border-b border-hairline px-4 py-3 align-top [tr:last-child_&]:border-b-0" {...strip(props)} />,
+    thead: (props) => <thead className="bg-paper-2" {...strip(props)} />,
+    th: (props) => <th className="border-b border-line bg-paper px-3 py-2.5 text-[12.5px] font-semibold whitespace-nowrap text-muted" {...strip(props)} />,
+    td: (props) => <td className="border-b border-line-soft px-3 py-2 align-top [tr:last-child_&]:border-b-0" {...strip(props)} />,
   };
 
   return (
-    <div className={cn("markdown text-lead leading-relaxed text-pretty", className)}>
+    <div className={cn("text-[15.5px] leading-relaxed text-pretty text-ink", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, HIGHLIGHT]]} components={components}>
         {prepared}
       </ReactMarkdown>
@@ -110,5 +105,3 @@ function strip<T extends { node?: unknown }>(props: T): Omit<T, "node"> {
   const { node: _node, ...rest } = props;
   return rest;
 }
-
-export type MarkdownComponentProps = ComponentProps<typeof Markdown>;

@@ -1,18 +1,18 @@
-import type { PipelineEvent } from "../pipeline/types.js";
+import type { HubEvent } from "../pipeline/types.js";
 
-type Listener = (event: PipelineEvent) => void;
+type Listener = (event: HubEvent) => void;
 
-const MAX_HISTORY = 3000;
+const MAX_HISTORY = 6000;
 
 /**
- * Everything one project says as it happens. Open dashboards and CLIs subscribe;
+ * Everything the app says as it happens, for every client (each event carries its clientId). Open dashboards and CLIs subscribe;
  * a new subscriber first receives the recent history, so it can draw the feed.
  */
 export class EventHub {
-  private log: PipelineEvent[] = [];
+  private log: HubEvent[] = [];
   private listeners = new Set<Listener>();
 
-  history(): PipelineEvent[] {
+  history(): HubEvent[] {
     return this.log;
   }
 
@@ -21,13 +21,14 @@ export class EventHub {
     return () => this.listeners.delete(listener);
   }
 
-  emit(event: PipelineEvent): void {
+  emit(event: HubEvent): void {
     this.log.push(event);
     if (this.log.length > MAX_HISTORY) this.log.splice(0, this.log.length - MAX_HISTORY);
     for (const listener of this.listeners) listener(event);
   }
 
-  clear(): void {
-    this.log = [];
+  /** Forget one client's events (after its data is reset). */
+  clearClient(clientId: string): void {
+    this.log = this.log.filter((event) => event.clientId !== clientId);
   }
 }

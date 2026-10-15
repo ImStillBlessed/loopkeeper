@@ -9,7 +9,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CAST, SCHOOLS } from "./cast.js";
+import { CAST, CLIENTS } from "./cast.js";
 import { buildChat, formatExport, GROUP_NAME } from "./generator.js";
 
 const outputDir = join(import.meta.dirname, "output");
@@ -30,7 +30,7 @@ const labels = chat.map((event, index) => ({
 }));
 writeFileSync(join(outputDir, `${baseName}.labels.json`), JSON.stringify(labels, null, 2) + "\n");
 
-const roster = { group: GROUP_NAME, schools: SCHOOLS, people: CAST };
+const roster = { group: GROUP_NAME, clients: CLIENTS, people: CAST };
 writeFileSync(join(outputDir, "roster.json"), JSON.stringify(roster, null, 2) + "\n");
 
 const relevant = labels.filter((l) => l.relevant);

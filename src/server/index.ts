@@ -2,59 +2,69 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { existsSync } from "node:fs";
+import { DEMO_PASSWORD, STAFF } from "../../data/synthetic/staff.js";
+import { currentUser, logIn, logOut, requireLogin, requireRole, type StaffUser } from "../auth.js";
 import { config } from "../config.js";
 import { githubConfigured } from "../github/api.js";
-import { listProjectIds } from "../graph/client.js";
-import { createProject, deleteProject, listProjects, prepareProjects, renameProject, type GroupSource } from "../runtime/projects.js";
+import { getWorld } from "../runtime/world.js";
 import { describeSettings, loadSettings, saveSettings, setting, type SettingField } from "../settings.js";
+import { clientRoutes } from "./client-routes.js";
 import { githubWebhook } from "./github-webhook.js";
-import { projectRoutes } from "./project-routes.js";
+import { whatsappWebhook } from "./whatsapp-webhook.js";
+import { hqRoutes } from "./hq-routes.js";
+
+type Env = { Variables: { user: StaffUser } };
 
 const app = new Hono();
-const api = new Hono();
+const api = new Hono<Env>();
 
-/** What's configured, so the dashboard and CLI can explain what's missing. */
-api.get("/status", (c) =>
-  c.json({ hasApiKey: Boolean(setting("groqApiKey")), githubConfigured: githubConfigured(), defaultProject: config.defaultProject }),
+// ─── Open routes: login, and GitHub's webhook (which has its own signature check) ───
+
+api.post("/auth/login", async (c) => {
+  const { email, password } = await c.req.json<{ email: string; password: string }>();
+  const user = await logIn(c, email ?? "", password ?? "");
+  return user ? c.json(user) : c.json({ error: "That email and password don't match" }, 401);
+});
+
+api.post("/auth/logout", (c) => {
+  logOut(c);
+  return c.json({ ok: true });
+});
+
+api.get("/auth/me", (c) => {
+  const user = currentUser(c);
+  return user ? c.json(user) : c.json({ error: "Not logged in" }, 401);
+});
+
+/** The demo accounts, shown on the login screen so judges can try every role. */
+api.get("/auth/demo-accounts", (c) =>
+  c.json({ password: DEMO_PASSWORD, accounts: STAFF.filter((s) => ["stf_admin", "stf_lead", "stf_ngozi", "stf_tunde"].includes(s.id)).map(({ name, email, role }) => ({ name, email, role })) }),
 );
 
-// ─── App settings (stored in FalkorDB, secrets encrypted) ───────────────────
+api.route("/github/webhook", githubWebhook);
+api.route("/whatsapp/webhook", whatsappWebhook);
+
+// ─── Everything else needs a logged-in staff member ───
+
+api.use("*", requireLogin);
+
+/** What's configured, so the dashboard and CLI can explain what's missing. */
+api.get("/status", (c) => c.json({ hasApiKey: Boolean(setting("anthropicApiKey")), githubConfigured: githubConfigured() }));
 
 api.get("/settings", (c) => c.json(describeSettings()));
 
-api.put("/settings", async (c) => {
+api.put("/settings", requireRole("admin"), async (c) => {
   await saveSettings(await c.req.json<Partial<Record<SettingField, string>>>());
   return c.json(describeSettings());
 });
 
-// ─── Projects ────────────────────────────────────────────────────────────────
-
-api.get("/projects", async (c) => c.json(await listProjects()));
-
-api.post("/projects", async (c) => {
-  const { name, firstGroup } = await c.req.json<{ name: string; firstGroup?: { name: string; source: GroupSource } }>();
-  return c.json(await createProject(name ?? "", firstGroup));
-});
-
-api.patch("/projects/:project", async (c) => {
-  const { name } = await c.req.json<{ name: string }>();
-  await renameProject(c.req.param("project"), name ?? "");
-  return c.json({ ok: true });
-});
-
-api.delete("/projects/:project", async (c) => {
-  const id = c.req.param("project");
-  if (!(await listProjectIds()).includes(id)) return c.json({ error: `No project "${id}"` }, 404);
-  await deleteProject(id);
-  return c.json({ ok: true });
-});
-
-api.route("/projects/:project", projectRoutes);
-api.route("/github/webhook", githubWebhook);
+api.route("/clients/:client", clientRoutes);
+api.route("/", hqRoutes);
 
 api.onError((error, c) => {
   console.error(error);
-  return c.json({ error: error.message }, 500);
+  const status = (error as { status?: number }).status === 404 ? 404 : 500;
+  return c.json({ error: error.message }, status);
 });
 
 app.route("/api", api);
@@ -65,8 +75,8 @@ if (existsSync("web/dist")) {
 }
 
 await loadSettings();
-await prepareProjects();
+await getWorld();
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`Loopkeeper API on http://localhost:${port}`);
-  if (!setting("groqApiKey")) console.warn("ℹ No Groq API key yet: add one in the dashboard under Settings (free at console.groq.com/keys)");
+  if (!setting("anthropicApiKey")) console.warn("ℹ No Anthropic API key yet: add one in the dashboard under Settings → Connections");
 });

@@ -13,6 +13,7 @@ import {
   W4_LINK_FEATURE_AND_OWNER,
   W5_ADD_EVIDENCE,
   W6_CHANGE_STATUS,
+  W15_FIRST_RESPONSE,
 } from "../graph/queries.js";
 import { stableId } from "../ingest/ids.js";
 import type { ChatMessage } from "../ingest/types.js";
@@ -24,6 +25,9 @@ import type { Extraction, Feature, PipelineEvent, UpdateKind } from "./types.js"
 /** Notified after a status change, e.g. to comment on or close a linked GitHub issue. */
 export type StatusChangeHook = (change: { issueId: string; to: string; reason: string }) => void;
 
+/** Notified when a ticket is opened, e.g. to record a cross-client signal in HQ. */
+export type IssueCreatedHook = (issue: { issueId: string; title: string; featureKey: string | null; severity: string; embedding: number[] }) => void;
+
 export interface ApplyContext {
   graph: Graph;
   llm: Llm;
@@ -31,7 +35,10 @@ export interface ApplyContext {
   /** This project's product features; extraction may only use these keys. */
   features: Feature[];
   emit: (event: PipelineEvent) => void;
+  /** Ednovax staff (developers, support) replying count as a first response for SLA. */
+  senderIsStaff?: boolean;
   onStatusChange?: StatusChangeHook;
+  onIssueCreated?: IssueCreatedHook;
 }
 
 const knownFeature = (ctx: ApplyContext, key: string | null) => (key && ctx.features.some((f) => f.key === key) ? key : null);
@@ -100,8 +107,11 @@ async function createIssue(ctx: ApplyContext, issue: Extraction["new_issues"][nu
   const feature = ctx.features.find((f) => f.key === featureKey)?.name;
   activity(ctx, `Opened ${issue.kind === "bug" ? "a problem" : issue.kind === "question" ? "a question" : "a request"}: "${issue.title}"${feature ? ` in ${feature}` : ""}${owner ? `, assigned to ${owner}` : ""}`, id);
 
+  ctx.onIssueCreated?.({ issueId: id, title: issue.title, featureKey, severity: issue.severity, embedding });
+
   for (const merge of await mergeDuplicates(ctx.graph, ctx.llm, id, ts)) {
     activity(ctx, `Recognised a duplicate and merged it into "${merge.canonicalTitle}"`, merge.canonicalId);
+    ctx.onStatusChange?.({ issueId: merge.duplicateId, to: "merged", reason: `Merged into "${merge.canonicalTitle}"` });
   }
   return id;
 }
@@ -113,6 +123,7 @@ async function applyIssueUpdate(ctx: ApplyContext, issueIdFromModel: string, kin
 
   const evidenceKind = kind === "answered" ? "resolved" : kind;
   await run(ctx.graph, W5_ADD_EVIDENCE, { messageId: ctx.message.id, issueId: issue.id, kind: evidenceKind, ts });
+  if (ctx.senderIsStaff) await run(ctx.graph, W15_FIRST_RESPONSE, { issueId: issue.id, ts });
 
   const nextStatus = statusAfter(kind, issue.status, confidence);
   if (!nextStatus || nextStatus === issue.status) {

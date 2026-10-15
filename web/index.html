@@ -1,14 +1,23 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#121217" />
-    <title>Loopkeeper</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='34' fill='none' stroke='%23B39DFF' stroke-width='14'/><circle cx='78' cy='26' r='12' fill='%23FFC845'/></svg>" />
+    <meta name="theme-color" content="#0C1E53" />
+    <title>Ednovax Support Desk</title>
+    <link rel="icon" href="/logo/fav.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // The brand is light; dark mode only when someone chose it. Applied before the first paint.
+      try {
+        if (localStorage.getItem("lk-theme") === "dark") document.documentElement.dataset.theme = "dark";
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

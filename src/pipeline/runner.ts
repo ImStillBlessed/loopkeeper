@@ -2,7 +2,7 @@ import type { Graph } from "falkordb";
 import { C12_PEOPLE, C13_FEATURES, Q0_STATS, run, W1_COUNT_MESSAGE, W2_MESSAGE } from "../graph/queries.js";
 import type { ChatMessage } from "../ingest/types.js";
 import type { Llm } from "../llm/llm.js";
-import { applyExtraction, type StatusChangeHook } from "./apply.js";
+import { applyExtraction, type IssueCreatedHook, type StatusChangeHook } from "./apply.js";
 import { extract } from "./extract.js";
 import { sendDueReminders } from "./reminders.js";
 import { TRIAGE_BATCH_SIZE, triageBatch } from "./triage.js";
@@ -14,6 +14,8 @@ export interface PipelineOptions {
   emit: (event: PipelineEvent) => void;
   /** Called after any status change, e.g. to keep a linked GitHub issue in sync. */
   onStatusChange?: StatusChangeHook;
+  /** Called when a ticket is opened, e.g. to record a cross-client signal in HQ. */
+  onIssueCreated?: IssueCreatedHook;
   signal?: AbortSignal;
 }
 
@@ -47,7 +49,9 @@ export async function processBatch(batch: ChatMessage[], previous: ChatMessage[]
 
   for (const [index, message] of batch.entries()) {
     if (options.signal?.aborted) return;
-    await processMessage(message, verdicts[index], recent, people, features, options);
+    // Notes staff add from Ask are kept even if triage would call them small talk.
+    const verdict = message.trusted ? { ...verdicts[index], relevant: true, type: verdicts[index].type ?? "status_update" } : verdicts[index];
+    await processMessage(message, verdict, recent, people, features, options);
     recent.push(message);
     if (recent.length > RECENT_CONTEXT) recent.shift();
   }
@@ -59,7 +63,7 @@ async function processMessage(
   recent: ChatMessage[],
   people: Map<string, Person>,
   features: Feature[],
-  { graph, llm, emit, onStatusChange }: PipelineOptions,
+  { graph, llm, emit, onStatusChange, onIssueCreated }: PipelineOptions,
 ): Promise<void> {
   const ts = Date.parse(message.ts);
   // Activity lines and the feed use the roster name, not the masked number WhatsApp showed.
@@ -75,6 +79,7 @@ async function processMessage(
       hasMedia: message.hasMedia,
       relevant: verdict.relevant,
       type: verdict.type,
+      sentiment: verdict.sentiment,
     },
   });
 
@@ -91,11 +96,14 @@ async function processMessage(
       ts,
       type: verdict.type,
       hasMedia: message.hasMedia,
+      sentiment: verdict.sentiment ?? "calm",
       embedding,
     });
 
     const { extraction } = await extract(graph, llm, { message, embedding, recent, people, features });
-    await applyExtraction({ graph, llm, message: { ...message, senderName }, features, emit, onStatusChange }, extraction);
+    const role = people.get(message.senderId)?.role;
+    const senderIsStaff = role === "developer" || role === "support";
+    await applyExtraction({ graph, llm, message: { ...message, senderName }, features, emit, senderIsStaff, onStatusChange, onIssueCreated }, extraction);
   }
 
   for (const reminder of await sendDueReminders(graph, ts)) {

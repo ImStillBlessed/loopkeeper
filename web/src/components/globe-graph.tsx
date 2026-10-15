@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import SpriteText from "three-spritetext";
 import * as THREE from "three";
 import type { GraphData } from "@/lib/api";
-import { COLORS, NODE_COLORS } from "@/lib/palette";
+import { NODE_COLORS } from "@/lib/palette";
 
 export interface GlobeNode {
   id: string;
@@ -27,7 +27,13 @@ interface GlobeLink {
 const Globe = ForceGraph3D as unknown as new (element: HTMLElement, options?: ConfigOptions) => ForceGraph3DInstance<GlobeNode, GlobeLink>;
 
 const RADIUS = 170;
-const DIM = "#2a2a30";
+const isDark = () => document.documentElement.dataset.theme === "dark";
+/** Colours that follow the theme: paper and navy in light mode, deep navy in dark mode. */
+const theme = () =>
+  isDark()
+    ? { background: "#081232", core: "#0b173d", wire: "#5b86ff", ink: "#edf0f8", label: "#0f1c47", dim: "#22346a", link: "rgba(237,240,248,0.12)", linkLit: "#edf0f8" }
+    : { background: "#F5F3EE", core: "#ffffff", wire: "#0C1E53", ink: "#0C1E53", label: "#ffffff", dim: "#D8D4CA", link: "rgba(12,30,83,0.12)", linkLit: "#0C1E53" };
+const MUTED = "#8A8F9C";
 const endId = (end: string | GlobeNode) => (typeof end === "string" ? end : end.id);
 
 /**
@@ -54,25 +60,18 @@ function sphereForce(radius: number) {
   return force;
 }
 
-/** Faint wireframe planet and a field of stars, so the graph reads as a small world. */
+/** A faint navy wireframe planet under the nodes, so the graph reads as one small world. */
 function decorate(scene: THREE.Scene) {
+  const colors = theme();
   const planet = new THREE.Mesh(
     new THREE.IcosahedronGeometry(RADIUS * 0.96, 4),
-    new THREE.MeshBasicMaterial({ color: COLORS.lilac, wireframe: true, transparent: true, opacity: 0.05 }),
+    new THREE.MeshBasicMaterial({ color: colors.wire, wireframe: true, transparent: true, opacity: 0.07 }),
   );
   const core = new THREE.Mesh(
     new THREE.SphereGeometry(RADIUS * 0.94, 48, 48),
-    new THREE.MeshBasicMaterial({ color: "#0c0c10", transparent: true, opacity: 0.9 }),
+    new THREE.MeshBasicMaterial({ color: colors.core, transparent: true, opacity: 0.85 }),
   );
-
-  const starPositions = new Float32Array(1500 * 3);
-  for (let i = 0; i < starPositions.length; i++) starPositions[i] = (Math.random() - 0.5) * 4000;
-  const stars = new THREE.Points(
-    new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(starPositions, 3)),
-    new THREE.PointsMaterial({ color: "#ffffff", size: 1.4, transparent: true, opacity: 0.5 }),
-  );
-
-  scene.add(core, planet, stars);
+  scene.add(core, planet);
 }
 
 interface GlobeGraphProps {
@@ -92,32 +91,33 @@ export function GlobeGraph({ data, highlight, onSelect }: GlobeGraphProps) {
     const isLit = (id: string) => lit.current.size === 0 || lit.current.has(id);
     const linkLit = (link: GlobeLink) => lit.current.size > 0 && lit.current.has(endId(link.source)) && lit.current.has(endId(link.target));
 
+    const colors = theme();
     const instance = new Globe(host.current, { controlType: "orbit" })
-      .backgroundColor("#121217")
+      .backgroundColor(colors.background)
       .showNavInfo(false)
       .nodeId("id")
       .nodeRelSize(3.2)
       .nodeResolution(18)
       .nodeOpacity(0.95)
       .nodeVal((n) => (n.label === "Issue" ? 4 : n.label === "School" || n.label === "Person" ? 2.6 : n.label === "Feature" ? 2.2 : 1))
-      .nodeColor((n) => (isLit(n.id) ? NODE_COLORS[n.label] ?? COLORS.muted : DIM))
-      .nodeLabel((n) => `<div style="font-family:Prompt,sans-serif;padding:6px 12px;border-radius:12px;background:#1f1f23;color:#f5f5f7">${escapeHtml(n.name ?? n.id)}</div>`)
+      .nodeColor((n) => (isLit(n.id) ? (NODE_COLORS[n.label] ?? MUTED) : colors.dim))
+      .nodeLabel((n) => `<div style="font-family:'Instrument Sans',sans-serif;font-size:13px;padding:6px 10px;background:${colors.label};color:${colors.ink};border:1px solid ${colors.dim}">${escapeHtml(n.name ?? n.id)}</div>`)
       .nodeThreeObjectExtend(true)
       .nodeThreeObject((n) => {
         const labelled = lit.current.size > 0 ? lit.current.has(n.id) && n.label !== "Message" : n.label === "School" || n.label === "Feature";
         if (!labelled) return new THREE.Object3D();
-        const text = new SpriteText((n.name ?? n.id).slice(0, 28), 4.2, "#f5f5f7");
-        text.fontFace = "Prompt";
+        const text = new SpriteText((n.name ?? n.id).slice(0, 28), 4.2, colors.ink);
+        text.fontFace = "Instrument Sans";
         text.position.y = 8;
         return text;
       })
       .linkCurvature(0.25)
       .linkOpacity(0.5)
-      .linkColor((l) => (linkLit(l) ? "#ffffff" : "rgba(255,255,255,0.10)"))
-      .linkWidth((l) => (linkLit(l) ? 0.9 : 0))
+      .linkColor((l) => (linkLit(l) ? colors.linkLit : colors.link))
+      .linkWidth((l) => (linkLit(l) ? 0.9 : 0.3))
       .linkDirectionalParticles((l) => (linkLit(l) ? 3 : 0))
       .linkDirectionalParticleWidth(2.2)
-      .linkDirectionalParticleColor(() => COLORS.sunflower)
+      .linkDirectionalParticleColor(() => "#D2402C")
       .onNodeClick((node) => {
         onSelect(node);
         const distance = Math.hypot(node.x ?? 0, node.y ?? 0, node.z ?? 0) || 1;
@@ -125,7 +125,7 @@ export function GlobeGraph({ data, highlight, onSelect }: GlobeGraphProps) {
         instance.cameraPosition({ x: (node.x ?? 0) * scale, y: (node.y ?? 0) * scale, z: (node.z ?? 0) * scale }, { x: 0, y: 0, z: 0 }, 1200);
       })
       .onBackgroundClick(() => onSelect(undefined))
-      .cameraPosition({ z: RADIUS * 3 });
+      .cameraPosition({ z: RADIUS * (host.current.clientWidth < 520 ? 4.6 : 3) });
 
     instance.d3Force("sphere", sphereForce(RADIUS) as never);
     instance.d3Force("charge")?.strength?.(-18);

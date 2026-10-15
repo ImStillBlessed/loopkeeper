@@ -63,10 +63,12 @@ function scriptedExtraction(text: string, openIssues: IssueCard[]): Extraction {
   } else if (text.includes("Same here o, JSS3")) {
     update(/score/i, "confirmed");
   } else if (text.includes("our SS1 scores are not saving")) {
-    // Simulates the model missing the existing issue: vector search + WCC must catch the duplicate.
+    // Another client, so a new ticket in its own graph. HQ must notice it is the same problem.
     result.new_issues.push({ title: "SS1 scores not saving", summary: "Scores empty after submitting", kind: "bug", feature_key: "score_submission", severity: "high" });
   } else if (text.includes("score submission no dey work")) {
-    update(/score/i, "confirmed");
+    // A third client, writing in Pidgin, with no score ticket of its own yet.
+    if (find(/score/i)) update(/score/i, "confirmed");
+    else result.new_issues.push({ title: "Score submission not saving marks", summary: "Marks entered after the exam do not save", kind: "bug", feature_key: "score_submission", severity: "high" });
   } else if (text.includes("timing out for big classes")) {
     update(/score/i, "in_progress");
   } else if (text.includes("CBT timer is not showing")) {

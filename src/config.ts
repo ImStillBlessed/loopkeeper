@@ -22,12 +22,10 @@ export const config = {
   chatUtcOffset: "+01:00",
   timeZone: "Africa/Lagos",
   llm: {
-    /** Any OpenAI-compatible endpoint works; Groq by default. */
-    baseURL: env("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
-    /** Small fast model for triage (runs on every batch of messages). */
-    fastModel: env("LLM_FAST_MODEL", "openai/gpt-oss-20b"),
-    /** Stronger model for extraction and the ask agent (needs JSON mode + tool calling). */
-    smartModel: env("LLM_SMART_MODEL", "openai/gpt-oss-120b"),
+    /** Claude's smallest, cheapest model for triage (runs on every batch of messages). */
+    fastModel: env("LLM_FAST_MODEL", "claude-haiku-5-5"),
+    /** Extraction and the Ask agent. The same small model by default, to keep costs low. */
+    smartModel: env("LLM_SMART_MODEL", "claude-haiku-5-5"),
     /** Runs locally via transformers.js: no API needed. */
     embeddingModel: env("EMBEDDING_MODEL", "Xenova/all-MiniLM-L6-v2"),
     /** Cache model replies on disk so replaying the same chat costs nothing. */
@@ -35,6 +33,8 @@ export const config = {
   },
   /** Two issues closer than this cosine distance become SIMILAR_TO candidates for merging. */
   duplicateMaxDistance: Number(env("DUPLICATE_MAX_DISTANCE", "0.45")),
+  /** Tickets from different clients on the same feature closer than this become one cross-client pattern. */
+  patternMaxDistance: Number(env("PATTERN_MAX_DISTANCE", "0.5")),
   /** Below this confidence a "it's working now" only marks an issue "possibly resolved". */
   autoCloseMinConfidence: Number(env("AUTO_CLOSE_MIN_CONFIDENCE", "0.75")),
   github: {

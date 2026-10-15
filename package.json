@@ -16,6 +16,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.134.0",
     "@hono/node-server": "^2.1.5",
     "@huggingface/transformers": "^4.3.1",
     "@radix-ui/react-alert-dialog": "^1.2.1",
@@ -31,7 +32,6 @@
     "hono": "^4.13.13",
     "lucide-react": "^1.57.0",
     "motion": "^14.2.0",
-    "openai": "^7.34.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",

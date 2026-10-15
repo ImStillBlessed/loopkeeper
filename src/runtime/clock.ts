@@ -26,6 +26,12 @@ export class ChatClock {
     if (ms > 0) this.offset += ms;
   }
 
+  /** Back to real time (only when the demo history is restored from scratch). */
+  reset(): void {
+    this.offset = 0;
+    this.last = 0;
+  }
+
   /** Move forward to `ts` if the clock is behind it. */
   setAtLeast(ts: number): void {
     const behind = ts - (Date.now() + this.offset);

@@ -1,7 +1,7 @@
 import type { Graph } from "falkordb";
-import type OpenAI from "openai";
-import { C13_FEATURES, P6_REPOS, Q0_STATS, Q14_MESSAGES, run } from "../graph/queries.js";
-import { chatClient, completeWithFallback, modelOptions, type Llm } from "../llm/llm.js";
+import type Anthropic from "@anthropic-ai/sdk";
+import { C13_FEATURES, Q0_STATS, Q14_MESSAGES, run } from "../graph/queries.js";
+import { anthropic, completeWithFallback, MAX_TOKENS, textOf, type Llm } from "../llm/llm.js";
 import { prompt } from "../llm/prompts.js";
 import { formatLagos } from "../pipeline/time.js";
 import { TOOLS, TOOLS_BY_NAME, type ToolContext } from "./tools.js";
@@ -13,6 +13,8 @@ export interface Answer {
   graphPath: { nodeIds: string[] };
   queriesRun: Array<{ id: string; title: string; cypher: string }>;
   toolCalls: Array<{ tool: string; args: unknown }>;
+  /** What the agent stored in the graph from this turn. */
+  remembered?: string[];
 }
 
 /** A previous question and the answer text, from the same conversation. */
@@ -24,26 +26,45 @@ export interface EarlierTurn {
 const MAX_STEPS = 6;
 const CITATION = /\[(msg_[a-f0-9]+)\]/g;
 
+/** Where a question is asked: one client's graph, plus what that client may learn from HQ. */
+export interface AskScope {
+  /** The chat clock, so "overdue" means overdue in the chat's time. */
+  now?: number;
+  /** Earlier turns of the conversation. */
+  earlier?: EarlierTurn[];
+  /** GitHub repositories of the client's products (owner/name). */
+  repos?: string[];
+  /** HQ graph and the client's id, for the abstract cross-client view. */
+  hq?: Graph;
+  clientId?: string;
+  clientName?: string;
+  /** Stores what the person told the agent (see the remember tool). Without it, nothing is stored. */
+  remember?: (text: string) => Promise<void>;
+}
+
 /**
- * Answers a question by letting the model call graph-query tools until it has what it needs.
- * `now` is the chat clock, so "overdue" means overdue in the chat's time.
+ * Answers a question about one client by letting the model call graph-query tools until it has what
+ * it needs. The tools only read this client's graph, plus HQ counts that never name other clients.
  */
-export async function ask(graph: Graph, llm: Llm, question: string, now?: number, earlier: EarlierTurn[] = []): Promise<Answer> {
+export async function ask(graph: Graph, llm: Llm, question: string, scope: AskScope = {}): Promise<Answer> {
   const [stats] = await run<{ clock: number }>(graph, Q0_STATS);
   const features = await run<{ key: string; name: string }>(graph, C13_FEATURES);
-  const repos = await run<{ id: string }>(graph, P6_REPOS);
-  const ctx: ToolContext = { graph, llm, now: now ?? (stats?.clock || Date.now()), repos: repos.map((r) => r.id) };
+  const earlier = scope.earlier ?? [];
+  const ctx: ToolContext = { graph, llm, now: scope.now ?? (stats?.clock || Date.now()), repos: scope.repos ?? [], hq: scope.hq, clientId: scope.clientId, remember: scope.remember };
 
   const context = [
+    scope.clientName ? `You are answering about one client: ${scope.clientName}. Never guess about other clients; same_problem_elsewhere gives counts only.` : "",
     `now = ${formatLagos(ctx.now)}`,
     `Product features (feature keys): ${features.map((f) => `${f.key} (${f.name})`).join(", ") || "none yet"}`,
     `Connected GitHub repositories: ${ctx.repos.join(", ") || "none"}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: `${prompt("agent")}\n\n${context}` },
+  const system = `${prompt("agent")}\n\n${context}`;
+  const messages: Anthropic.MessageParam[] = [
     // Earlier turns of the conversation, so follow-ups ("and who owns it?") make sense.
-    ...earlier.flatMap((turn): OpenAI.Chat.Completions.ChatCompletionMessageParam[] => [
+    ...earlier.flatMap((turn): Anthropic.MessageParam[] => [
       { role: "user", content: turn.question },
       { role: "assistant", content: turn.answer },
     ]),
@@ -54,30 +75,28 @@ export async function ask(graph: Graph, llm: Llm, question: string, now?: number
   const toolCalls: Answer["toolCalls"] = [];
 
   for (let step = 0; step < MAX_STEPS; step++) {
-    const response = await completeWithFallback("smart", (model, effort) =>
-      chatClient().chat.completions.create({ model, ...modelOptions(model, effort), messages, tools: TOOLS.map((t) => t.definition) }),
+    const response = await completeWithFallback("smart", (model) =>
+      anthropic().messages.create({ model, max_tokens: MAX_TOKENS, system, messages, tools: TOOLS.map((t) => t.definition) }),
     );
-    const reply = response.choices[0].message;
-    // Echo back only the standard fields: reasoning models add extras the API won't accept as input.
-    messages.push({ role: "assistant", content: reply.content ?? "", tool_calls: reply.tool_calls });
-
-    if (!reply.tool_calls?.length) {
-      return finalise(graph, reply.content ?? "", nodeIds, queries, toolCalls);
+    const uses = response.content.filter((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
+    if (response.stop_reason !== "tool_use" || uses.length === 0) {
+      return finalise(graph, textOf(response), nodeIds, queries, toolCalls);
     }
 
-    for (const call of reply.tool_calls) {
-      if (call.type !== "function") continue;
-      const args = JSON.parse(call.function.arguments || "{}");
-      toolCalls.push({ tool: call.function.name, args });
-      const tool = TOOLS_BY_NAME.get(call.function.name);
-      const result = tool
-        ? await tool.execute(args, ctx)
-        : { data: `Unknown tool ${call.function.name}`, nodeIds: [], queries: [] };
+    // Claude asked for tools: run them all, then hand every result back in one turn.
+    messages.push({ role: "assistant", content: response.content });
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const use of uses) {
+      const args = (use.input ?? {}) as Record<string, unknown>;
+      toolCalls.push({ tool: use.name, args });
+      const tool = TOOLS_BY_NAME.get(use.name);
+      const result = tool ? await tool.execute(args, ctx) : { data: `Unknown tool ${use.name}`, nodeIds: [], queries: [] };
 
       result.nodeIds.forEach((id) => nodeIds.add(id));
       result.queries.forEach((q) => queries.set(q.id, { id: q.id, title: q.title, cypher: q.cypher.trim() }));
-      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result.data) });
+      results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(result.data) });
     }
+    messages.push({ role: "user", content: results });
   }
 
   return finalise(graph, "I couldn't finish that within my step limit. Try asking a narrower question.", nodeIds, queries, toolCalls);
@@ -108,5 +127,6 @@ async function finalise(
     graphPath: { nodeIds: [...nodeIds] },
     queriesRun: [...queries.values()],
     toolCalls,
+    remembered: toolCalls.filter((c) => c.tool === "remember").map((c) => String((c.args as { text?: string }).text ?? "")).filter(Boolean),
   };
 }

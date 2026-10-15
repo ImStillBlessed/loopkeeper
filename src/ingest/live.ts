@@ -20,6 +20,7 @@ export function makeLiveMessage(input: {
   text: string;
   ts: number;
   hasMedia?: boolean;
+  trusted?: boolean;
   salt: string;
 }): ChatMessage {
   const senderId = personId(input.senderLabel, input.salt);
@@ -31,5 +32,6 @@ export function makeLiveMessage(input: {
     ts: toLagosIso(input.ts),
     text: input.text.trim(),
     hasMedia: Boolean(input.hasMedia),
+    ...(input.trusted ? { trusted: true } : {}),
   };
 }

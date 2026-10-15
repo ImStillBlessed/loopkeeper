@@ -1,7 +1,8 @@
 import type { Graph } from "falkordb";
 import { posix } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { IX1_FILES, IX2_FEATURES, IX3_FEATURE_FILES, IX4_OWNERS, IX5_IMPORTS, P5_REPO, P7_REPO_MARK, run } from "../graph/queries.js";
+import { HG1_REPO, HG3_LINK_FEATURES_TO_PRODUCT } from "../graph/hq-queries.js";
+import { IX1_FILES, IX2_FEATURES, IX3_FEATURE_FILES, IX4_OWNERS, IX5_IMPORTS, P7_REPO_MARK, run } from "../graph/queries.js";
 import { gh, normaliseRepo, readRepoFile } from "./api.js";
 
 const CODE_FILE = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|php|cs|swift|vue|svelte)$/;
@@ -14,6 +15,7 @@ const ROOT_FOLDERS = new Set(["src", "app", "apps", "lib", "libs", "pages", "com
 
 export interface IndexResult {
   repo: string;
+  product: string;
   files: number;
   features: number;
   owners: number;
@@ -29,15 +31,15 @@ interface FeatureSpec {
 }
 
 /**
- * Reads a GitHub repository (never writes to it) and adds its code to the project graph:
+ * Reads a GitHub repository (never writes to it) and adds its code to a product in the HQ graph:
  *   files → CodeFile, imports → IMPORTS, features.yaml (or folders) → Feature + IMPLEMENTED_IN,
  *   CODEOWNERS → developers who OWN files. That is what lets "teacher message → code → owner" work.
  */
-export async function indexRepository(graph: Graph, repoInput: string): Promise<IndexResult> {
+export async function indexRepository(graph: Graph, repoInput: string, product: string): Promise<IndexResult> {
   const repo = normaliseRepo(repoInput);
   const info = await gh<{ default_branch: string; html_url: string }>(`/repos/${repo}`);
   const branch = info.default_branch;
-  await run(graph, P5_REPO, { id: repo, url: info.html_url, defaultBranch: branch, ts: Date.now() });
+  await run(graph, HG1_REPO, { id: repo, url: info.html_url, defaultBranch: branch, product, ts: Date.now() });
 
   const tree = await gh<{ tree: Array<{ path: string; type: string; sha: string }> }>(`/repos/${repo}/git/trees/${branch}?recursive=1`);
   const files = tree.tree
@@ -55,6 +57,7 @@ export async function indexRepository(graph: Graph, repoInput: string): Promise<
   const declared = await readFeaturesFile(repo, branch);
   const features = declared ?? featuresFromFolders([...paths]);
   await run(graph, IX2_FEATURES, { features: features.map(({ key, name, description }) => ({ key, name, description: description ?? null })) });
+  await run(graph, HG3_LINK_FEATURES_TO_PRODUCT, { product, keys: features.map((f) => f.key) });
   const links = files.flatMap((f) => {
     const feature = features.find((spec) => spec.paths.some((prefix) => f.path.startsWith(prefix)));
     return feature ? [{ feature: feature.key, fileId: fileId(f.path) }] : [];
@@ -76,7 +79,7 @@ export async function indexRepository(graph: Graph, repoInput: string): Promise<
   const featureSource = declared ? "features.yaml" : "folders";
   await run(graph, P7_REPO_MARK, { id: repo, indexedAt: Date.now(), syncedAt: null, featureSource });
 
-  return { repo, files: files.length, features: features.length, owners: new Set(owners.map((o) => o.handle)).size, imports: imports.length, featureSource };
+  return { repo, product, files: files.length, features: features.length, owners: new Set(owners.map((o) => o.handle)).size, imports: imports.length, featureSource };
 }
 
 /**

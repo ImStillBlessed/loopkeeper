@@ -3,23 +3,25 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
+/** shadcn's Button: rounded, sentence case, electric blue for the main action. */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-pill font-medium select-none " +
-    "transition-[transform,background-color,color,opacity] duration-300 ease-fluid active:scale-[0.97] " +
-    "disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-[1.1em] [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control text-[14px] font-semibold select-none " +
+    "transition-[background-color,color,border-color,box-shadow,transform] duration-150 active:scale-[0.98] " +
+    "disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-lilac text-black hover:bg-[#c4b2ff]",
-        secondary: "bg-surface-2 text-foreground hover:bg-surface-3",
-        ghost: "text-muted hover:bg-surface-1 hover:text-foreground",
-        outline: "border border-hairline text-foreground hover:bg-surface-1",
+        default: "bg-primary text-primary-ink shadow-[0_4px_12px_-4px_rgb(31_107_255/0.55)] hover:bg-[color-mix(in_srgb,var(--primary)_88%,black)]",
+        navy: "bg-ink text-card hover:bg-ink-2",
+        outline: "border border-line bg-card text-ink hover:border-faint hover:bg-paper",
+        ghost: "text-muted hover:bg-paper hover:text-ink",
+        danger: "bg-red text-white hover:bg-[color-mix(in_srgb,var(--red)_86%,black)]",
       },
       size: {
-        default: "h-12 px-6 text-body",
-        sm: "h-10 px-4 text-small",
-        lg: "h-14 px-8 text-lead",
-        icon: "size-11",
+        default: "h-10 px-4",
+        sm: "h-9 px-3.5 text-[13.5px]",
+        lg: "h-12 px-6 text-[15px]",
+        icon: "size-9",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

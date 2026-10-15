@@ -23,16 +23,16 @@ export function Confirm({
     <AlertDialog.Root open={open} onOpenChange={setOpen}>
       <AlertDialog.Trigger asChild>{children}</AlertDialog.Trigger>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-[fade-in_250ms_ease-out]" />
-        <AlertDialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-sheet bg-[#1b1b21] p-9 shadow-[0_40px_120px_rgba(0,0,0,0.8)] data-[state=open]:animate-[fade-in_250ms_ease-out]">
-          <AlertDialog.Title className="text-title font-medium">{title}</AlertDialog.Title>
-          <AlertDialog.Description className="mt-3 text-body text-muted">{description}</AlertDialog.Description>
-          <div className="mt-8 flex justify-end gap-3">
+        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-[rgb(14_31_85/0.3)] backdrop-blur-[2px] data-[state=open]:animate-[fade-in_200ms_ease-out]" />
+        <AlertDialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-line bg-card p-8 shadow-float data-[state=open]:animate-[rise_200ms_ease-out]">
+          <AlertDialog.Title className="font-display text-[22px] font-semibold tracking-tight">{title}</AlertDialog.Title>
+          <AlertDialog.Description className="mt-2 text-muted">{description}</AlertDialog.Description>
+          <div className="mt-7 flex justify-end gap-2">
             <AlertDialog.Cancel asChild>
               <Button variant="ghost">Cancel</Button>
             </AlertDialog.Cancel>
             <Button
-              className="bg-coral text-black hover:bg-[#ff8585]"
+              variant="danger"
               disabled={busy}
               onClick={async () => {
                 setBusy(true);

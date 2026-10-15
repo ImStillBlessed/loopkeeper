@@ -25,5 +25,8 @@ Most messages are noise. Your job is to find the ones that are real work.
 - If a message is a thank-you AND says the problem is fixed, it is a `resolution`.
 - confidence is 0–1.
 
+## Sentiment (work messages only)
+How the sender sounds: `calm` (neutral, polite), `concerned` (worried, waiting, "please is it fixed?"), or `frustrated` (angry, repeated complaints, "again!!", 😩 about a problem that keeps happening). Ednovax staff are almost always `calm`.
+
 ## Output
-Return JSON: `{"results": [{"id": "<message id>", "relevant": true|false, "type": "<type or null>", "confidence": 0.0}]}`, with one entry for every message in `messages_to_triage`, in the same order.
+Return JSON: `{"results": [{"id": "<message id>", "relevant": true|false, "type": "<type or null>", "sentiment": "calm|concerned|frustrated|null", "confidence": 0.0}]}`, with one entry for every message in `messages_to_triage`, in the same order.

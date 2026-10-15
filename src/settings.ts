@@ -9,19 +9,25 @@ import { ensureSchema } from "./graph/schema.js";
  */
 
 const SYSTEM_GRAPH = "loopkeeper";
-const SECRET_FIELDS = ["groqApiKey", "githubToken", "githubWebhookSecret"] as const;
-const PLAIN_FIELDS = ["fastModel", "smartModel"] as const;
+const SECRET_FIELDS = ["anthropicApiKey", "githubToken", "githubWebhookSecret", "whatsappAccessToken", "whatsappAppSecret", "whatsappVerifyToken"] as const;
+const PLAIN_FIELDS = ["fastModel", "smartModel", "anthropicWorkspaceId", "whatsappPhoneNumberId", "whatsappHubGroupId"] as const;
 
 type SecretField = (typeof SECRET_FIELDS)[number];
 type PlainField = (typeof PLAIN_FIELDS)[number];
 export type SettingField = SecretField | PlainField;
 
 const ENV_FALLBACK: Record<SettingField, () => string> = {
-  groqApiKey: () => process.env.GROQ_API_KEY ?? "",
+  anthropicApiKey: () => process.env.ANTHROPIC_API_KEY ?? "",
   githubToken: () => process.env.GITHUB_TOKEN ?? "",
   githubWebhookSecret: () => process.env.GITHUB_WEBHOOK_SECRET ?? "",
   fastModel: () => config.llm.fastModel,
   smartModel: () => config.llm.smartModel,
+  anthropicWorkspaceId: () => process.env.ANTHROPIC_WORKSPACE_ID ?? "",
+  whatsappAccessToken: () => process.env.WHATSAPP_ACCESS_TOKEN ?? "",
+  whatsappAppSecret: () => process.env.WHATSAPP_APP_SECRET ?? "",
+  whatsappVerifyToken: () => process.env.WHATSAPP_VERIFY_TOKEN ?? "",
+  whatsappPhoneNumberId: () => process.env.WHATSAPP_PHONE_NUMBER_ID ?? "",
+  whatsappHubGroupId: () => process.env.WHATSAPP_HUB_GROUP_ID ?? "",
 };
 
 let stored: Partial<Record<SettingField, string>> = {};
@@ -44,6 +50,8 @@ export async function loadSettings(): Promise<void> {
   const properties = reply.data?.[0]?.s.properties ?? {};
   stored = {};
   for (const field of PLAIN_FIELDS) if (properties[field]) stored[field] = properties[field];
+  // Model names saved for an earlier provider (e.g. Groq) are ignored; Claude models start with "claude".
+  for (const field of ["fastModel", "smartModel"] as const) if (!stored[field]?.startsWith("claude")) delete stored[field];
   for (const field of SECRET_FIELDS) if (properties[field]) stored[field] = decrypt(properties[field]);
 }
 
@@ -68,11 +76,17 @@ export function describeSettings() {
     return { configured: Boolean(value), source: stored[field] ? "app" : value ? "env" : null, hint: value ? `…${value.slice(-4)}` : null };
   };
   return {
-    groqApiKey: secret("groqApiKey"),
+    anthropicApiKey: secret("anthropicApiKey"),
     githubToken: secret("githubToken"),
     githubWebhookSecret: secret("githubWebhookSecret"),
     fastModel: setting("fastModel"),
     smartModel: setting("smartModel"),
+    anthropicWorkspaceId: setting("anthropicWorkspaceId"),
+    whatsappAccessToken: secret("whatsappAccessToken"),
+    whatsappAppSecret: secret("whatsappAppSecret"),
+    whatsappVerifyToken: secret("whatsappVerifyToken"),
+    whatsappPhoneNumberId: setting("whatsappPhoneNumberId"),
+    whatsappHubGroupId: setting("whatsappHubGroupId"),
   };
 }
 

@@ -1,50 +1,53 @@
-import { CAST, type CastMember } from "../../data/synthetic/cast.js";
+import { CAST, castOf, CLIENTS, type CastMember } from "../../data/synthetic/cast.js";
 import { buildChat, START_DATE, type TimedEvent } from "../../data/synthetic/generator.js";
 import { PREPARED, type PreparedKind } from "../../data/synthetic/prepared.js";
-import { SCRIPTED_EVENTS, type ScenarioId } from "../../data/synthetic/scenarios.js";
+import { SCRIPTED_EVENTS, type ChatEvent, type ScenarioId } from "../../data/synthetic/scenarios.js";
 import type { ChatClock } from "./clock.js";
 
-/** What the simulator hands to the project when someone in the group "sends" a message. */
-export type SendFn = (message: { groupId: string; senderLabel: string; text: string; hasMedia?: boolean; ts: number }) => void;
+/** What the simulator hands over when someone in a client's group "sends" a message. */
+export type SendFn = (message: { clientId: string; senderLabel: string; text: string; hasMedia?: boolean; ts: number }) => void;
 
 const DAY = 24 * 60 * 60 * 1000;
 const LAGOS_OFFSET = 60 * 60 * 1000;
 const SCRIPT_DAY_ZERO = Date.UTC(START_DATE.year, START_DATE.month - 1, START_DATE.day);
 
 /**
- * A pretend WhatsApp connection for the demo group. It can:
- *   - go live: play three weeks of the group as a live chat (dated from tomorrow morning, sped up)
- *   - play one storyline (S1–S7) on its own
- *   - send one message: prepared (issue, greeting, …) or anything you type
- * It only ever produces messages; the project's inbox and pipeline treat them like real ones.
+ * A pretend WhatsApp connection for the demo clients. Every client has its own group; the simulator
+ * sends each message to the right one. It can:
+ *   - go live: play three weeks of all the groups as live chat (dated from the next morning, sped up)
+ *   - play one storyline (S1–S8)
+ *   - send one message to a client: prepared (issue, greeting, …) or anything you type
+ * It only ever produces messages; each client's inbox and pipeline treat them like real ones.
  */
 export class Simulator {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private script: TimedEvent[] = [];
   private position = 0;
   private anchor = 0;
-  groupId: string | undefined;
+  private router = new ClientRouter();
   paceMs = 2500;
 
   constructor(
     private clock: ChatClock,
     private send: SendFn,
     private onChange: () => void,
+    /** Clients that exist right now (a deleted demo client is skipped). */
+    private activeClients: () => string[],
   ) {}
 
   get running(): boolean {
     return this.timer !== undefined;
   }
 
-  /** Start (or resume) the live group. */
-  start(groupId: string, paceMs = this.paceMs): void {
+  /** Start (or resume) the live groups. */
+  start(paceMs = this.paceMs): void {
     this.stop();
-    this.groupId = groupId;
     this.paceMs = paceMs;
     if (this.position >= this.script.length) {
       this.script = buildChat(Math.floor(Math.random() * 10_000));
       this.position = 0;
       this.anchor = nextMorning(this.clock.peek());
+      this.router = new ClientRouter();
     }
     this.onChange();
     this.tick();
@@ -63,73 +66,103 @@ export class Simulator {
     this.script = [];
   }
 
-  /** Plays one storyline quickly; the clock jumps over the days between its messages. */
-  async playStory(groupId: string, scenario: ScenarioId, paceMs = 1500): Promise<number> {
+  /**
+   * Plays one storyline into whichever clients it involves, happening now: its messages arrive a
+   * moment apart in their scripted order. (Use "Skip ahead" to watch promises and SLAs fall due.)
+   */
+  async playStory(scenario: ScenarioId, paceMs = 1500): Promise<number> {
     const events = SCRIPTED_EVENTS.filter((e) => e.label.scenario === scenario).sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
     if (events.length === 0) return 0;
-    // The story's first day becomes the next chat day; each message keeps its time of day.
-    const start = nextMorning(this.clock.peek()) - Math.floor(eventOffset(events[0]) / DAY) * DAY;
-
+    const router = new ClientRouter();
     for (const event of events) {
-      const ts = Math.max(this.clock.peek(), start + eventOffset(event));
-      this.clock.setAtLeast(ts);
-      this.send({ groupId, senderLabel: castLabel(event.sender), text: event.text, hasMedia: event.hasMedia, ts: this.clock.now() });
+      const clientId = router.clientFor(event, this.activeClients());
+      if (!clientId) continue;
+      this.send({ clientId, senderLabel: castLabel(event.sender), text: event.text, hasMedia: event.hasMedia, ts: this.clock.now() });
       await sleep(paceMs);
     }
     return events.length;
   }
 
-  /** A ready-made message of the given kind, from a fitting (or the named) person. */
-  prepared(groupId: string, kind: PreparedKind, sender?: string): { sender: string; text: string } {
+  /** A ready-made message of the given kind, in one client's group, from a fitting (or the named) person. */
+  prepared(clientId: string, kind: PreparedKind, sender?: string): { sender: string; text: string } {
     const library = PREPARED[kind];
-    const person = sender ? resolveSender(sender) : pick(peopleFor(library.senders)).name;
+    const person = sender ? resolveSender(sender, clientId) : pick(peopleFor(clientId, library.senders)).name;
     const text = pick(library.texts);
-    this.say(groupId, person, text);
+    this.say(clientId, person, text);
     return { sender: person, text };
   }
 
-  /** Anyone says anything. Unknown names become new people in the group. */
-  say(groupId: string, sender: string, text: string): void {
+  /** Anyone says anything in a client's group. Unknown names become new people in that group. */
+  say(clientId: string, sender: string, text: string): void {
     const member = CAST.find((m) => m.name === sender || m.key === sender);
-    this.send({ groupId, senderLabel: member?.whatsappLabel ?? sender, text, ts: this.clock.now() });
+    this.send({ clientId, senderLabel: member?.whatsappLabel ?? sender, text, ts: this.clock.now() });
   }
 
   private tick = (): void => {
     const event = this.script[this.position];
-    if (!event || !this.groupId) {
+    if (!event) {
       this.timer = undefined;
       this.onChange();
       return;
     }
     this.position++;
-    // Keep the script's rhythm across days, but never let chat time run backwards.
-    this.clock.setAtLeast(this.anchor + eventOffset(event));
-    this.send({ groupId: this.groupId, senderLabel: castLabel(event.sender), text: event.text, hasMedia: event.hasMedia, ts: this.clock.now() });
-
+    const clientId = this.router.clientFor(event, this.activeClients());
+    if (clientId) {
+      // Keep the script's rhythm across days, but never let chat time run backwards.
+      this.clock.setAtLeast(this.anchor + eventOffset(event));
+      this.send({ clientId, senderLabel: castLabel(event.sender), text: event.text, hasMedia: event.hasMedia, ts: this.clock.now() });
+    }
     // Real work is spaced out a little more than small talk, so the feed is readable.
     const delay = this.paceMs * (event.label.relevant ? 1.4 : 0.6);
     this.timer = setTimeout(this.tick, delay);
   };
 }
 
-/** Turns "chidi", "Mr Chidi", "chidi nwosu" into the cast member's full name. Anything else is kept as typed. */
-export function resolveSender(input: string): string {
+/**
+ * Which client's group a scripted message belongs to. A teacher always writes in their own client's
+ * group; Ednovax staff reply in the group of whoever last spoke in the same storyline.
+ */
+class ClientRouter {
+  private lastByScenario = new Map<string, string>();
+  private lastClient: string | undefined;
+
+  clientFor(event: ChatEvent, active: string[]): string | undefined {
+    const sender = CAST.find((m) => m.key === event.sender);
+    const scenario = event.label.scenario ?? "noise";
+    let clientId = sender?.clientId ?? this.lastByScenario.get(scenario) ?? (event.label.relevant ? this.lastClient : undefined);
+    // Small talk from the Ednovax team lands in any group.
+    clientId ??= pick(active.length ? active : CLIENTS.map((c) => c.id));
+    if (!active.includes(clientId)) return undefined;
+    if (sender?.clientId) {
+      this.lastByScenario.set(scenario, clientId);
+      if (event.label.relevant) this.lastClient = clientId;
+    }
+    return clientId;
+  }
+}
+
+/** Turns "chidi", "Mr Chidi", "chidi nwosu" into a cast member's full name, preferring people in the given client's group. */
+export function resolveSender(input: string, clientId?: string): string {
   const needle = input.trim().toLowerCase();
+  const people = clientId ? castOf(clientId) : CAST;
   const member =
-    CAST.find((m) => m.key === needle) ??
-    CAST.find((m) => m.name.toLowerCase() === needle) ??
-    CAST.find((m) => m.name.toLowerCase().includes(needle));
+    people.find((m) => m.key === needle) ??
+    people.find((m) => m.name.toLowerCase() === needle) ??
+    people.find((m) => m.name.toLowerCase().includes(needle)) ??
+    CAST.find((m) => m.key === needle || m.name.toLowerCase().includes(needle));
   return member?.name ?? input.trim();
 }
 
-export function castPeople(): CastMember[] {
-  return CAST;
+/** WhatsApp label for a cast member's full name (some appear as phone numbers); anyone else is kept as typed. */
+export function whatsappLabelFor(name: string): string {
+  return CAST.find((m) => m.name === name)?.whatsappLabel ?? name;
 }
 
-function peopleFor(senders: "teachers" | "staff" | "anyone"): CastMember[] {
-  if (senders === "teachers") return CAST.filter((m) => m.schoolId);
-  if (senders === "staff") return CAST.filter((m) => !m.schoolId);
-  return CAST;
+function peopleFor(clientId: string, senders: "teachers" | "staff" | "anyone"): CastMember[] {
+  const people = castOf(clientId);
+  if (senders === "teachers") return people.filter((m) => m.clientId);
+  if (senders === "staff") return people.filter((m) => !m.clientId);
+  return people;
 }
 
 function castLabel(key: string): string {

@@ -1,102 +1,80 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { projectApi, type PipelineEvent, type ProjectApi } from "./api";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { api, type DeskEvent } from "./api";
 
 interface LiveState {
-  project: string;
-  api: ProjectApi;
-  /** Everything this project has said since the server started. */
-  events: PipelineEvent[];
-  seen: number;
-  ignored: number;
-  used: number;
-  /** Is the simulated WhatsApp group sending messages on its own? */
-  live: boolean;
-  liveGroupId: string | undefined;
+  /** Everything the desk has said since the server started (for the clients this person can see). */
+  events: DeskEvent[];
+  /** Are the simulated WhatsApp groups chatting on their own? */
+  running: boolean;
   /** The chat's clock (it can run ahead of real time). */
   clock: number;
+  /** The last pipeline error, e.g. the model's daily limit. */
   error: string | undefined;
-  /** Bumps whenever the graph changed, so pages know to refetch. */
+  /** Bumps whenever the graphs changed, so pages know to refetch. */
   version: number;
-  goLive: (groupId?: string) => Promise<void>;
+  goLive: () => Promise<void>;
   pause: () => Promise<void>;
-  dismissError: () => void;
   advanceClock: (hours: number) => Promise<void>;
-  reset: () => Promise<void>;
+  dismissError: () => void;
   touch: () => void;
 }
 
 const LiveContext = createContext<LiveState | null>(null);
 
-/** Connects once to a project's event stream and shares it with every page. Remount it to switch project. */
-export function LiveProvider({ project, children }: { project: string; children: ReactNode }) {
-  const api = useMemo(() => projectApi(project), [project]);
-  const [events, setEvents] = useState<PipelineEvent[]>([]);
-  const [counts, setCounts] = useState({ seen: 0, ignored: 0, used: 0 });
-  const [liveState, setLiveState] = useState({ live: false, liveGroupId: undefined as string | undefined, clock: Date.now() });
+/** One connection to the desk's event stream, shared by every page. */
+export function LiveProvider({ children }: { children: ReactNode }) {
+  const [events, setEvents] = useState<DeskEvent[]>([]);
+  const [state, setState] = useState({ running: false, clock: Date.now() });
   const [error, setError] = useState<string>();
   const [version, setVersion] = useState(0);
-  const pendingBump = useRef<number | undefined>(undefined);
+  const pending = useRef<number | undefined>(undefined);
 
-  // While messages stream in, refetch at most every 1.2 s.
+  // While messages stream in, refetch at most every 1.5 s.
   const bumpSoon = useCallback(() => {
-    if (pendingBump.current) return;
-    pendingBump.current = window.setTimeout(() => {
-      pendingBump.current = undefined;
+    if (pending.current) return;
+    pending.current = window.setTimeout(() => {
+      pending.current = undefined;
       setVersion((v) => v + 1);
-    }, 1200);
+    }, 1500);
   }, []);
 
   useEffect(() => {
-    api.stats().then((s) => {
-      setCounts({ seen: s.seen, ignored: s.ignored, used: s.used });
-      setLiveState({ live: s.live, liveGroupId: s.liveGroupId ?? undefined, clock: s.clock });
-    });
-
+    api.live().then(setState, () => undefined);
     return api.events((event) => {
-      setEvents((all) => [...all, event]);
-      if (event.kind === "stats") setCounts({ seen: event.seen, ignored: event.ignored, used: event.used });
-      if (event.kind === "live") setLiveState({ live: event.running, liveGroupId: event.groupId, clock: event.clock });
-      if (event.kind === "message") setLiveState((s) => ({ ...s, clock: Math.max(s.clock, Date.parse(event.message.ts)) }));
-      if (event.kind === "activity" || event.kind === "bot") bumpSoon();
+      setEvents((all) => (all.length > 1500 ? [...all.slice(-1000), event] : [...all, event]));
+      if (event.kind === "live") setState({ running: event.running, clock: event.clock });
+      if (event.kind === "message") setState((s) => ({ ...s, clock: Math.max(s.clock, Date.parse(event.message.ts)) }));
+      if (event.kind === "activity" || event.kind === "bot" || event.kind === "hub" || (event.kind === "message" && event.message.relevant)) bumpSoon();
       if (event.kind === "run") {
         setError(event.state === "failed" ? event.error : undefined);
-        if (event.state !== "started") setVersion((v) => v + 1);
+        if (event.state !== "started") bumpSoon();
       }
     });
-  }, [api, bumpSoon]);
+  }, [bumpSoon]);
+
+  // The clock keeps ticking between events, so SLA timers count down on screen.
+  useEffect(() => {
+    const timer = window.setInterval(() => setState((s) => ({ ...s, clock: s.clock + 30_000 })), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const value: LiveState = {
-    project,
-    api,
     events,
-    ...counts,
-    ...liveState,
+    ...state,
     error,
     version,
     touch: () => setVersion((v) => v + 1),
-    // Update the button from the response right away; the event stream confirms it later.
-    goLive: async (groupId) => {
-      setError(undefined);
-      const stats = await api.goLive(groupId);
-      setLiveState({ live: stats.live, liveGroupId: stats.liveGroupId ?? undefined, clock: stats.clock });
-    },
-    pause: async () => {
-      const stats = await api.pause();
-      setLiveState({ live: stats.live, liveGroupId: stats.liveGroupId ?? undefined, clock: stats.clock });
-    },
     dismissError: () => setError(undefined),
-    advanceClock: async (hours) => {
-      const stats = await api.advanceClock(hours);
-      setLiveState((s) => ({ ...s, clock: stats.clock }));
+    goLive: async () => {
+      setError(undefined);
+      setState(await api.goLive());
     },
-    reset: async () => {
-      await api.reset();
-      setEvents([]);
-      setCounts({ seen: 0, ignored: 0, used: 0 });
+    pause: async () => setState(await api.pause()),
+    advanceClock: async (hours) => {
+      setState(await api.advanceClock(hours));
       setVersion((v) => v + 1);
     },
   };
-
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
 }
 
@@ -106,22 +84,23 @@ export function useLive(): LiveState {
   return live;
 }
 
-/** Fetches data for the open project and refetches whenever the graph changes. */
-export function useLiveQuery<T>(fetcher: (api: ProjectApi) => Promise<T>, extraDeps: unknown[] = []) {
-  const { version, api } = useLive();
+/** Fetches data and refetches whenever the graphs change. `reload` refetches on demand. */
+export function useLiveQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = []) {
+  const { version } = useLive();
   const [data, setData] = useState<T>();
   const [error, setError] = useState<string>();
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    fetcher(api)
+    fetcher()
       .then((result) => !cancelled && (setData(result), setError(undefined)))
       .catch((e: Error) => !cancelled && setError(e.message));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, version, ...extraDeps]);
+  }, [version, nonce, ...deps]);
 
-  return { data, error };
+  return { data, error, reload: () => setNonce((n) => n + 1) };
 }

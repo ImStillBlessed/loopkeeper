@@ -3,7 +3,9 @@ import type { Llm } from "../llm/llm.js";
 import { prompt } from "../llm/prompts.js";
 import { MESSAGE_TYPES, type MessageType } from "./message-types.js";
 import { formatLagos } from "./time.js";
-import type { Person, TriageResult } from "./types.js";
+import type { Person, Sentiment, TriageResult } from "./types.js";
+
+const SENTIMENTS: Sentiment[] = ["calm", "concerned", "frustrated"];
 
 export const TRIAGE_BATCH_SIZE = 20;
 const CONTEXT_SIZE = 5;
@@ -25,7 +27,7 @@ export async function triageBatch(
     text: m.hasMedia ? `${m.text} [photo/media attached]`.trim() : m.text,
   });
 
-  const reply = await llm.json<{ results?: Array<Partial<TriageResult> & { type?: string | null }> }>(
+  const reply = await llm.json<{ results?: Array<Partial<TriageResult> & { type?: string | null; sentiment?: string | null }> }>(
     "fast",
     prompt("triage"),
     {
@@ -40,7 +42,8 @@ export async function triageBatch(
     const type = MESSAGE_TYPES.includes(result?.type as MessageType) ? (result?.type as MessageType) : undefined;
     // A message the model forgot, or marked relevant without a valid type, is treated as noise.
     const relevant = Boolean(result?.relevant && type);
-    return { id: message.id, relevant, type: relevant ? type : undefined, confidence: result?.confidence ?? 0 };
+    const sentiment = SENTIMENTS.includes(result?.sentiment as Sentiment) ? (result?.sentiment as Sentiment) : "calm";
+    return { id: message.id, relevant, type: relevant ? type : undefined, sentiment: relevant ? sentiment : undefined, confidence: result?.confidence ?? 0 };
   });
 }
 

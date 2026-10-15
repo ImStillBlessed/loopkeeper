@@ -8,7 +8,8 @@ export const EMBEDDING_DIMENSION = 384;
  * Without them, every MERGE during ingest would scan all nodes of that label.
  */
 const RANGE_INDEXES: Array<[label: string, property: string]> = [
-  ["Project", "id"],
+  // Client graphs
+  ["Client", "id"],
   ["Repo", "id"],
   ["CodeFile", "id"],
   ["PullRequest", "id"],
@@ -24,6 +25,15 @@ const RANGE_INDEXES: Array<[label: string, property: string]> = [
   ["Decision", "id"],
   ["Feature", "key"],
   ["CodeFile", "path"],
+  ["Conversation", "id"],
+  // HQ graph
+  ["Staff", "id"],
+  ["Staff", "email"],
+  ["Product", "key"],
+  ["SlaPolicy", "plan"],
+  ["Signal", "id"],
+  ["Signal", "clientId"],
+  ["Pattern", "id"],
   ["PullRequest", "number"],
 ];
 
@@ -31,6 +41,7 @@ const RANGE_INDEXES: Array<[label: string, property: string]> = [
 const VECTOR_INDEXES: Array<[label: string, property: string]> = [
   ["Issue", "embedding"],
   ["Message", "embedding"],
+  ["Signal", "embedding"],
 ];
 
 /**

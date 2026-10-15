@@ -3,14 +3,15 @@ import type { ReactNode } from "react";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
-export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+export function Tooltip({ content, children, side }: { content: ReactNode; children: ReactNode; side?: "top" | "right" | "bottom" | "left" }) {
   return (
     <TooltipPrimitive.Root delayDuration={250}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
-          sideOffset={10}
-          className="z-50 rounded-chip bg-[#2a2a2e] px-3.5 py-2 text-small text-foreground shadow-xl data-[state=delayed-open]:animate-[fade-in_200ms_ease-out]"
+          side={side}
+          sideOffset={8}
+          className="z-50 max-w-72 rounded-lg bg-ink px-3 py-2 text-[13px] text-card shadow-float data-[state=delayed-open]:animate-[fade-in_150ms_ease-out]"
         >
           {content}
         </TooltipPrimitive.Content>

@@ -8,10 +8,14 @@ export interface Person {
   school: string | null;
 }
 
+export type Sentiment = "calm" | "concerned" | "frustrated";
+
 export interface TriageResult {
   id: string;
   relevant: boolean;
   type?: MessageType;
+  /** How the sender sounds; only for work messages. Feeds the client health score. */
+  sentiment?: Sentiment;
   confidence: number;
 }
 
@@ -51,6 +55,7 @@ export interface FeedMessage {
   hasMedia: boolean;
   relevant: boolean;
   type?: MessageType;
+  sentiment?: Sentiment;
 }
 
 /** Everything a project tells the dashboard (and the CLI) as it happens. */
@@ -62,3 +67,22 @@ export type PipelineEvent =
   /** The live connection: is the simulated group sending, and what time is it in the chat. */
   | { kind: "live"; running: boolean; clock: number; groupId?: string }
   | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string };
+
+/** A message in the central support hub, and where it was routed. */
+export interface HubEntry {
+  id: string;
+  ts: number;
+  sender: string;
+  text: string;
+  status: "routed" | "pending" | "ignored";
+  clientIds: string[];
+  /** How the client was worked out: named in the message, a known contact, the same thread, the model, or a person. */
+  method: "named" | "contact" | "thread" | "model" | "manual" | "";
+  reason: string;
+}
+
+/**
+ * An event on the app-wide stream: the same events, tagged with the client they belong to (none for HQ),
+ * plus the central support hub's own events (shown only to staff who see every client).
+ */
+export type HubEvent = (PipelineEvent | { kind: "hub"; entry: HubEntry }) & { clientId?: string };

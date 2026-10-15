@@ -1,5 +1,5 @@
 import type { Graph } from "falkordb";
-import type OpenAI from "openai";
+import type Anthropic from "@anthropic-ai/sdk";
 import {
   OPEN_STATUSES,
   Q12_EVIDENCE,
@@ -15,11 +15,13 @@ import {
   Q8_HISTORY,
   Q9_EXPLAIN_LINK,
   Q10_SEARCH_ISSUES,
+  Q20_SEARCH_MESSAGES,
   GH9_CODE_ACTIVITY,
   run,
   type NamedQuery,
 } from "../graph/queries.js";
 import { openGithubIssue } from "../github/issues.js";
+import { X8_PATTERN_FOR_TICKET } from "../graph/hq-queries.js";
 import type { Llm } from "../llm/llm.js";
 import { formatLagos, HOUR } from "../pipeline/time.js";
 
@@ -36,14 +38,19 @@ export interface ToolContext {
   llm: Llm;
   /** The chat's "now" (latest message time). */
   now: number;
-  /** GitHub repositories connected to this project (owner/name). Empty when GitHub isn't set up. */
+  /** GitHub repositories of this client's products (owner/name). Empty when GitHub isn't set up. */
   repos: string[];
+  /** HQ graph and this client's id, for the cross-client view (counts only). */
+  hq?: Graph;
+  clientId?: string;
+  /** Stores something the person said into this client's graph (through its normal pipeline, as their message). */
+  remember?: (text: string) => Promise<void>;
 }
 
 type Args = Record<string, unknown>;
 
 interface Tool {
-  definition: OpenAI.Chat.Completions.ChatCompletionFunctionTool;
+  definition: Anthropic.Tool;
   execute(args: Args, ctx: ToolContext): Promise<ToolResult>;
 }
 
@@ -52,18 +59,14 @@ const ids = (...lists: unknown[][]) => lists.flat().filter((x): x is string => t
 
 function tool(name: string, description: string, properties: Record<string, object>, required: string[], execute: Tool["execute"]): Tool {
   return {
-    definition: {
-      type: "function",
-      function: { name, description, parameters: { type: "object", properties: allowNullWhenOptional(properties, required), required, additionalProperties: false } },
-    },
+    definition: { name, description, input_schema: { type: "object", properties: allowNullWhenOptional(properties, required), required } },
     execute,
   };
 }
 
 /**
- * Some models fill optional parameters with null instead of leaving them out, and Groq rejects a
- * tool call that doesn't match the schema. Optional parameters therefore accept null too
- * (the tools already treat null as "not given").
+ * Models sometimes fill optional parameters with null instead of leaving them out. Optional
+ * parameters therefore accept null too (the tools already treat null as "not given").
  */
 function allowNullWhenOptional(properties: Record<string, object>, required: string[]): Record<string, object> {
   return Object.fromEntries(
@@ -128,6 +131,32 @@ export const TOOLS: Tool[] = [
         nodeIds: ids([issueId, code?.featureKey], code?.files ?? [], evidence.map((m) => m.id)),
         queries: [Q13_ISSUE, Q12_EVIDENCE, Q2_CODE_PATH, Q8_HISTORY],
       };
+    },
+  ),
+
+  tool(
+    "remember",
+    "Store information the person just told you that the graph should keep: a new problem, a promise, a decision, or a useful fact (a contact, a setup, an agreement). Write it as one plain statement in their words, naming who and what. Don't store questions, your own answers, or things already in the graph.",
+    { text: { type: "string", description: "The information, as one plain statement" } },
+    ["text"],
+    async (args, { remember }) => {
+      const text = str(args.text);
+      if (!text || !remember) return { data: "Nothing stored", nodeIds: [], queries: [] };
+      await remember(text);
+      return { data: `Stored: ${text}. It becomes a ticket, promise or decision if it is one, and can be found from now on.`, nodeIds: [], queries: [] };
+    },
+  ),
+
+  tool(
+    "search_messages",
+    "Semantic search over everything said in this client's groups and everything the team noted from Ask (place 'Ask notes'). Use it for facts that aren't tickets: contacts, setups, agreements, background.",
+    { query: { type: "string" } },
+    ["query"],
+    async (args, { graph, llm, now }) => {
+      const [embedding] = await llm.embed([String(args.query)]);
+      const rows = await run<{ id: string; text: string; ts: number; sender: string; place: string; distance: number }>(graph, Q20_SEARCH_MESSAGES, { embedding });
+      const relevant = rows.filter((r) => r.distance < 0.75).map((r) => ({ ...r, when: formatLagos(r.ts), daysAgo: Math.floor((now - r.ts) / (24 * HOUR)) }));
+      return { data: relevant, nodeIds: relevant.map((r) => r.id), queries: [Q20_SEARCH_MESSAGES] };
     },
   ),
 
@@ -240,6 +269,21 @@ export const TOOLS: Tool[] = [
 /** Tools that touch GitHub. Reading code activity is safe; opening an issue writes to GitHub (never to code). */
 TOOLS.push(
   tool(
+    "same_problem_elsewhere",
+    "Whether other Ednovax clients have reported the same problem as an issue, and whether a fix is in progress. Gives counts only, never which clients.",
+    { issueId: ISSUE_ID },
+    ["issueId"],
+    async (args, { hq, clientId }) => {
+      if (!hq || !clientId) return { data: "Not available here", nodeIds: [], queries: [] };
+      const issueId = String(args.issueId);
+      const [pattern] = await run<{ title: string; otherClients: number; statuses: string[]; pullRequests: Array<{ number: number | null; state: string; url: string }> }>(hq, X8_PATTERN_FOR_TICKET, { id: issueId, clientId });
+      const data = pattern
+        ? { otherClients: pattern.otherClients, problem: pattern.title, theirStatuses: pattern.statuses, fixes: pattern.pullRequests.filter((pr) => pr.number !== null) }
+        : { otherClients: 0 };
+      return { data, nodeIds: [issueId], queries: [X8_PATTERN_FOR_TICKET] };
+    },
+  ),
+  tool(
     "code_activity",
     "Pull requests and commits linked to an issue, and its GitHub issue if one exists.",
     { issueId: ISSUE_ID },
@@ -264,4 +308,4 @@ TOOLS.push(
   ),
 );
 
-export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.definition.function.name, t]));
+export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.definition.name, t]));
