@@ -1,4 +1,4 @@
-import { Globe2, MessageCircle, Sparkles, Sun, CircleDot } from "lucide-react";
+import { CircleDot, Globe2, MessageCircle, Settings2, Sparkles, Sun } from "lucide-react";
 import { motion } from "motion/react";
 import { type Page, useNavigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ const ITEMS: Array<{ page: Page; label: string; icon: typeof Sun }> = [
   { page: "issues", label: "Issues", icon: CircleDot },
   { page: "globe", label: "Globe", icon: Globe2 },
   { page: "ask", label: "Ask", icon: Sparkles },
+  { page: "settings", label: "Settings", icon: Settings2 },
 ];
 
 /** Floating pill navigation. The active highlight glides between items. */

@@ -1,6 +1,5 @@
 import type { Graph } from "falkordb";
 import type OpenAI from "openai";
-import { FEATURES } from "../../data/synthetic/product.js";
 import {
   OPEN_STATUSES,
   Q12_EVIDENCE,
@@ -16,9 +15,11 @@ import {
   Q8_HISTORY,
   Q9_EXPLAIN_LINK,
   Q10_SEARCH_ISSUES,
+  GH9_CODE_ACTIVITY,
   run,
   type NamedQuery,
 } from "../graph/queries.js";
+import { openGithubIssue } from "../github/issues.js";
 import type { Llm } from "../llm/llm.js";
 import { formatLagos, HOUR } from "../pipeline/time.js";
 
@@ -35,6 +36,8 @@ export interface ToolContext {
   llm: Llm;
   /** The chat's "now" (latest message time). */
   now: number;
+  /** GitHub repositories connected to this project (owner/name). Empty when GitHub isn't set up. */
+  repos: string[];
 }
 
 type Args = Record<string, unknown>;
@@ -57,7 +60,7 @@ function tool(name: string, description: string, properties: Record<string, obje
   };
 }
 
-const FEATURE_KEY = { type: "string", enum: FEATURES.map((f) => f.key), description: "Product feature key" };
+const FEATURE_KEY = { type: "string", description: "Product feature key, from the list in your instructions" };
 const ISSUE_ID = { type: "string", description: "Issue id, starts with iss_" };
 
 export const TOOLS: Tool[] = [
@@ -210,5 +213,32 @@ export const TOOLS: Tool[] = [
     },
   ),
 ];
+
+/** Tools that touch GitHub. Reading code activity is safe; opening an issue writes to GitHub (never to code). */
+TOOLS.push(
+  tool(
+    "code_activity",
+    "Pull requests and commits linked to an issue, and its GitHub issue if one exists.",
+    { issueId: ISSUE_ID },
+    ["issueId"],
+    async (args, { graph }) => {
+      const issueId = String(args.issueId);
+      const [row] = await run<{ pullRequests: unknown[]; commits: unknown[] }>(graph, GH9_CODE_ACTIVITY, { issueId });
+      return { data: row ?? "No code activity", nodeIds: [issueId], queries: [GH9_CODE_ACTIVITY] };
+    },
+  ),
+  tool(
+    "open_github_issue",
+    "Open a GitHub issue for a Loopkeeper issue, with the teachers' messages, files and owner from the graph. Only when the user asks for it.",
+    { issueId: ISSUE_ID, repo: { type: "string", description: "owner/name; defaults to the first connected repository" } },
+    ["issueId"],
+    async (args, { graph, repos }) => {
+      const repo = str(args.repo) ?? repos[0];
+      if (!repo) return { data: "No GitHub repository is connected to this project.", nodeIds: [], queries: [] };
+      const created = await openGithubIssue(graph, repo, String(args.issueId));
+      return { data: { opened: true, ...created }, nodeIds: [String(args.issueId)], queries: [] };
+    },
+  ),
+);
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.definition.function.name, t]));

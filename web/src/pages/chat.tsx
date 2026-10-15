@@ -1,13 +1,15 @@
-import { ChevronDown, Image as ImageIcon, Play, Sparkles } from "lucide-react";
+import { ChevronDown, Image as ImageIcon, Radio, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Composer } from "@/components/composer";
 import { Page } from "@/components/page";
 import { PeopleRail, PickedUpRail } from "@/components/rails";
+import { Segmented } from "@/components/segmented";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { FeedMessage, PipelineEvent } from "@/lib/api";
 import { formatDay, formatTime, plural } from "@/lib/format";
-import { useLive } from "@/lib/live";
+import { useLive, useLiveQuery } from "@/lib/live";
 import { useNavigation } from "@/lib/navigation";
 import { COLORS, MESSAGE_KINDS } from "@/lib/palette";
 
@@ -17,13 +19,17 @@ type Item =
   | { kind: "work"; key: string; message: FeedMessage; notes: Array<{ text: string; issueId?: string }> }
   | { kind: "bot"; key: string; text: string; ts: string };
 
-/** Turns the raw event stream into what a person wants to see: work, with small talk folded away. */
-function toItems(events: PipelineEvent[]): Item[] {
+/**
+ * Turns the raw event stream into what a person wants to see for one group: work, with small talk
+ * folded away, and what Loopkeeper did about each message.
+ */
+function toItems(events: PipelineEvent[], groupId: string | undefined): Item[] {
   const items: Item[] = [];
   let lastDay = "";
   let lastWork: Extract<Item, { kind: "work" }> | undefined;
 
   for (const [index, event] of events.entries()) {
+    if (event.kind === "message" && groupId && event.message.groupId !== groupId) continue;
     if (event.kind === "message") {
       const day = formatDay(event.message.ts);
       if (day !== lastDay) {
@@ -40,7 +46,9 @@ function toItems(events: PipelineEvent[]): Item[] {
       }
     }
     if (event.kind === "activity" && lastWork) lastWork.notes.push({ text: event.text, issueId: event.issueId });
-    if (event.kind === "bot") items.push({ kind: "bot", key: `bot-${index}`, text: event.text, ts: event.ts });
+    if (event.kind === "bot" && (!event.groupId || !groupId || event.groupId === groupId)) {
+      items.push({ kind: "bot", key: `bot-${index}`, text: event.text, ts: event.ts });
+    }
   }
   return items;
 }
@@ -48,25 +56,50 @@ function toItems(events: PipelineEvent[]): Item[] {
 export function ChatPage() {
   const live = useLive();
   const { go } = useNavigation();
-  const items = useMemo(() => toItems(live.events), [live.events]);
+  const { data: groups } = useLiveQuery((api) => api.groups());
+  const [chosenGroupId, setChosenGroupId] = useState<string>();
+  const groupId = chosenGroupId ?? live.liveGroupId ?? groups?.[0]?.id;
+  const group = groups?.find((g) => g.id === groupId);
+  const items = useMemo(() => toItems(live.events, groupId), [live.events, groupId]);
   const end = useRef<HTMLDivElement>(null);
 
-  // Follow along while the replay streams in.
+  // Follow along while messages stream in.
   useEffect(() => {
-    if (live.running) end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [items.length, live.running]);
+    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [items.length]);
+
+  if (groups && groups.length === 0) {
+    return (
+      <Page>
+        <h1 className="text-headline font-light tracking-tight">No WhatsApp group yet</h1>
+        <p className="mt-4 text-lead text-muted">Add a group to this project, then go live or write into it.</p>
+        <Button size="lg" className="mt-10" onClick={() => go("settings")}>
+          Add a group
+        </Button>
+      </Page>
+    );
+  }
 
   return (
     <Page left={<PeopleRail />} right={<PickedUpRail />}>
-      <h1 className="text-headline font-light tracking-tight">Ednovax Schools Support</h1>
-      <p className="mt-3 text-lead text-muted">The WhatsApp group, as Loopkeeper reads it. Small talk is folded away.</p>
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <h1 className="text-headline font-light tracking-tight">{group?.name ?? "Chat"}</h1>
+          <p className="mt-3 text-lead text-muted">The WhatsApp group, as Loopkeeper reads it. Small talk is folded away.</p>
+        </div>
+        {groups && groups.length > 1 && (
+          <Segmented<string> value={groupId ?? ""} onChange={setChosenGroupId} options={groups.map((g) => ({ value: g.id, label: g.name }))} />
+        )}
+      </div>
 
       {items.length === 0 ? (
         <div className="mt-20 flex flex-col items-start gap-8">
-          <p className="text-title font-light text-muted">The chat is quiet.</p>
-          <Button size="lg" onClick={async () => (await live.replay("normal"), go("chat"))}>
-            <Play /> Replay the group chat
-          </Button>
+          <p className="text-title font-light text-muted">The chat is quiet. Go live, or write something below.</p>
+          {!live.live && (
+            <Button size="lg" onClick={() => void live.goLive(groupId)}>
+              <Radio /> Go live
+            </Button>
+          )}
         </div>
       ) : (
         <div className="mt-14 flex flex-col gap-3">
@@ -90,6 +123,7 @@ export function ChatPage() {
         </div>
       )}
       <div ref={end} />
+      <Composer groupId={groupId} />
     </Page>
   );
 }

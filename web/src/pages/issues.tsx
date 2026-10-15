@@ -6,7 +6,7 @@ import { Page } from "@/components/page";
 import { FeaturesRail, SchoolsRail } from "@/components/rails";
 import { Segmented } from "@/components/segmented";
 import { Badge, Dot } from "@/components/ui/badge";
-import { api, type BoardIssue, type FollowUpsResponse } from "@/lib/api";
+import type { BoardIssue, FollowUpsResponse } from "@/lib/api";
 import { formatShortDay } from "@/lib/format";
 import { useLiveQuery } from "@/lib/live";
 import { useNavigation } from "@/lib/navigation";
@@ -17,8 +17,8 @@ const ACTIVE: StatusKey[] = ["possibly_resolved", "open", "in_progress"];
 
 export function IssuesPage() {
   const [view, setView] = useState<View>("issues");
-  const { data: issues } = useLiveQuery(api.board);
-  const { data: promises } = useLiveQuery(api.followUps);
+  const { data: issues } = useLiveQuery((api) => api.board());
+  const { data: promises } = useLiveQuery((api) => api.followUps());
 
   return (
     <Page left={<SchoolsRail issues={issues ?? []} />} right={<FeaturesRail issues={issues ?? []} />}>

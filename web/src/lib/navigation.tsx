@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
-export const PAGES = ["today", "chat", "issues", "globe", "ask"] as const;
+export const PAGES = ["today", "chat", "issues", "globe", "ask", "settings"] as const;
 export type Page = (typeof PAGES)[number];
 
 interface Navigation {

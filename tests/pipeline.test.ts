@@ -124,7 +124,7 @@ describe("pipeline on the synthetic chat", () => {
 });
 
 describe("agent tools run against the graph", () => {
-  const ctx = () => ({ graph, llm, now: Date.parse("2026-10-11T20:00:00+01:00") });
+  const ctx = () => ({ graph, llm, now: Date.parse("2026-10-11T20:00:00+01:00"), repos: [] });
   const call = (name: string, args: Record<string, unknown>) => TOOLS_BY_NAME.get(name)!.execute(args, ctx());
 
   it("list_open_items filters by school and returns sources", async () => {

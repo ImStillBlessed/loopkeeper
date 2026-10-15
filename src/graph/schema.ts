@@ -8,7 +8,11 @@ export const EMBEDDING_DIMENSION = 384;
  * Without them, every MERGE during ingest would scan all nodes of that label.
  */
 const RANGE_INDEXES: Array<[label: string, property: string]> = [
-  ["Tenant", "id"],
+  ["Project", "id"],
+  ["Repo", "id"],
+  ["CodeFile", "id"],
+  ["PullRequest", "id"],
+  ["Commit", "id"],
   ["Group", "id"],
   ["Person", "id"],
   ["School", "id"],

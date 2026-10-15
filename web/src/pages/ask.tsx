@@ -4,7 +4,8 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Headline, Page, RailSection } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api, type Answer } from "@/lib/api";
+import type { Answer } from "@/lib/api";
+import { useLive } from "@/lib/live";
 import { plural } from "@/lib/format";
 import { useNavigation } from "@/lib/navigation";
 import { COLORS } from "@/lib/palette";
@@ -35,6 +36,7 @@ export function AskPage() {
   const [answer, setAnswer] = useState<Answer>();
   const [error, setError] = useState<string>();
   const [thinking, setThinking] = useState(false);
+  const { api } = useLive();
   const [history, setHistory] = useState<string[]>([]);
 
   const ask = async (text: string) => {

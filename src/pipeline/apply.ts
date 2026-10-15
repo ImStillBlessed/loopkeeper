@@ -1,5 +1,4 @@
 import type { Graph } from "falkordb";
-import { FEATURES } from "../../data/synthetic/product.js";
 import { config } from "../config.js";
 import {
   C6_OPEN_FOLLOWUPS,
@@ -20,16 +19,22 @@ import type { ChatMessage } from "../ingest/types.js";
 import type { Llm } from "../llm/llm.js";
 import { mergeDuplicates } from "./duplicates.js";
 import { formatLagosDay, HOUR, parseLagosDate } from "./time.js";
-import type { Extraction, PipelineEvent, UpdateKind } from "./types.js";
+import type { Extraction, Feature, PipelineEvent, UpdateKind } from "./types.js";
+
+/** Notified after a status change, e.g. to comment on or close a linked GitHub issue. */
+export type StatusChangeHook = (change: { issueId: string; to: string; reason: string }) => void;
 
 export interface ApplyContext {
   graph: Graph;
   llm: Llm;
   message: ChatMessage;
+  /** This project's product features; extraction may only use these keys. */
+  features: Feature[];
   emit: (event: PipelineEvent) => void;
+  onStatusChange?: StatusChangeHook;
 }
 
-const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
+const knownFeature = (ctx: ApplyContext, key: string | null) => (key && ctx.features.some((f) => f.key === key) ? key : null);
 
 /** Writes one message's extraction into the graph. Every write links back to the message as its source. */
 export async function applyExtraction(ctx: ApplyContext, extraction: Extraction): Promise<void> {
@@ -58,7 +63,7 @@ export async function applyExtraction(ctx: ApplyContext, extraction: Extraction)
   }
 
   for (const decision of extraction.decisions) {
-    const featureKey = decision.feature_key && FEATURE_KEYS.has(decision.feature_key) ? decision.feature_key : null;
+    const featureKey = knownFeature(ctx, decision.feature_key);
     await run(ctx.graph, W13_DECISION, {
       id: stableId("dec", [ctx.message.id, decision.text]),
       messageId: ctx.message.id,
@@ -72,7 +77,7 @@ export async function applyExtraction(ctx: ApplyContext, extraction: Extraction)
 
 async function createIssue(ctx: ApplyContext, issue: Extraction["new_issues"][number], ts: number): Promise<string> {
   const id = stableId("iss", [ctx.message.id, issue.title]);
-  const featureKey = issue.feature_key && FEATURE_KEYS.has(issue.feature_key) ? issue.feature_key : null;
+  const featureKey = knownFeature(ctx, issue.feature_key);
   const [embedding] = await ctx.llm.embed([`${issue.title}. ${issue.summary}`]);
 
   await run(ctx.graph, W3_CREATE_ISSUE, {
@@ -92,7 +97,7 @@ async function createIssue(ctx: ApplyContext, issue: Extraction["new_issues"][nu
     const [assigned] = await run<{ owner: string }>(ctx.graph, W4_LINK_FEATURE_AND_OWNER, { issueId: id, featureKey });
     owner = assigned?.owner;
   }
-  const feature = FEATURES.find((f) => f.key === featureKey)?.name;
+  const feature = ctx.features.find((f) => f.key === featureKey)?.name;
   activity(ctx, `Opened ${issue.kind === "bug" ? "a problem" : issue.kind === "question" ? "a question" : "a request"}: "${issue.title}"${feature ? ` in ${feature}` : ""}${owner ? `, assigned to ${owner}` : ""}`, id);
 
   for (const merge of await mergeDuplicates(ctx.graph, ctx.llm, id, ts)) {
@@ -128,6 +133,7 @@ async function applyIssueUpdate(ctx: ApplyContext, issueIdFromModel: string, kin
       ? "might be fixed, waiting for a person to confirm"
       : nextStatus === "in_progress" ? "being worked on" : nextStatus;
   activity(ctx, `Marked ${label}, because ${ctx.message.senderName} said so`, issue.id);
+  ctx.onStatusChange?.({ issueId: issue.id, to: nextStatus, reason: `${ctx.message.senderName} said: "${ctx.message.text}"` });
 }
 
 /**

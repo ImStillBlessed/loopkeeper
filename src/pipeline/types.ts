@@ -34,9 +34,17 @@ export interface Extraction {
   decisions: Array<{ text: string; feature_key: string | null }>;
 }
 
+/** A product area, found in the repo (features.yaml or folders) or seeded for the demo. */
+export interface Feature {
+  key: string;
+  name: string;
+  description: string | null;
+}
+
 /** One line in the live feed. Noise shows up here but is never written to the graph. */
 export interface FeedMessage {
   id: string;
+  groupId: string;
   ts: string;
   senderName: string;
   text: string;
@@ -45,10 +53,12 @@ export interface FeedMessage {
   type?: MessageType;
 }
 
-/** Everything the pipeline tells the dashboard while it runs. */
+/** Everything a project tells the dashboard (and the CLI) as it happens. */
 export type PipelineEvent =
   | { kind: "message"; message: FeedMessage }
-  | { kind: "activity"; text: string; issueId?: string; ts: string }
-  | { kind: "bot"; text: string; ts: string }
+  | { kind: "activity"; text: string; issueId?: string; ts: string; source?: "chat" | "github" }
+  | { kind: "bot"; text: string; ts: string; groupId?: string }
   | { kind: "stats"; seen: number; ignored: number; used: number }
+  /** The live connection: is the simulated group sending, and what time is it in the chat. */
+  | { kind: "live"; running: boolean; clock: number; groupId?: string }
   | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string };

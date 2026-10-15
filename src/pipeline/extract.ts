@@ -1,5 +1,4 @@
 import type { Graph } from "falkordb";
-import { FEATURES } from "../../data/synthetic/product.js";
 import {
   C2_OPEN_ISSUES_FOR_SCHOOL,
   C3_OPEN_ISSUES_NEAR,
@@ -14,13 +13,15 @@ import type { Llm } from "../llm/llm.js";
 import { prompt } from "../llm/prompts.js";
 import { describeSender } from "./triage.js";
 import { formatLagos } from "./time.js";
-import type { Extraction, Person } from "./types.js";
+import type { Extraction, Feature, Person } from "./types.js";
 
 export interface ExtractionInput {
   message: ChatMessage;
   embedding: number[];
   recent: ChatMessage[];
   people: Map<string, Person>;
+  /** This project's product features, from its graph. */
+  features: Feature[];
 }
 
 export interface IssueCard {
@@ -54,7 +55,7 @@ export async function candidateIssues(graph: Graph, sender: Person | undefined, 
 }
 
 export async function extract(graph: Graph, llm: Llm, input: ExtractionInput): Promise<{ extraction: Extraction; candidates: IssueCard[] }> {
-  const { message, embedding, recent, people } = input;
+  const { message, embedding, recent, people, features } = input;
   const sender = people.get(message.senderId);
   const [candidates, followUps] = await Promise.all([
     candidateIssues(graph, sender, embedding),
@@ -75,7 +76,7 @@ export async function extract(graph: Graph, llm: Llm, input: ExtractionInput): P
     recent_conversation: recent.map(line),
     open_issues: candidates,
     open_followups: followUps.map((f) => ({ id: f.id, text: f.text, owner: f.owner, due: formatLagos(f.dueAt) })),
-    features: FEATURES,
+    features: features.map(({ key, name, description }) => ({ key, name, description })),
     people: [...people.values()].map((p) => describeSender(p, p.name)),
   });
 

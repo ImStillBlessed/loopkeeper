@@ -1,7 +1,7 @@
 import type { Graph } from "falkordb";
 import type OpenAI from "openai";
-import { config } from "../config.js";
-import { Q0_STATS, Q14_MESSAGES, run } from "../graph/queries.js";
+import { setting } from "../settings.js";
+import { C13_FEATURES, P6_REPOS, Q0_STATS, Q14_MESSAGES, run } from "../graph/queries.js";
 import { chatClient, modelOptions, type Llm } from "../llm/llm.js";
 import { prompt } from "../llm/prompts.js";
 import { formatLagos } from "../pipeline/time.js";
@@ -19,13 +19,24 @@ export interface Answer {
 const MAX_STEPS = 6;
 const CITATION = /\[(msg_[a-f0-9]+)\]/g;
 
-/** Answers a question by letting the model call graph-query tools until it has what it needs. */
-export async function ask(graph: Graph, llm: Llm, question: string): Promise<Answer> {
+/**
+ * Answers a question by letting the model call graph-query tools until it has what it needs.
+ * `now` is the chat clock, so "overdue" means overdue in the chat's time.
+ */
+export async function ask(graph: Graph, llm: Llm, question: string, now?: number): Promise<Answer> {
   const [stats] = await run<{ clock: number }>(graph, Q0_STATS);
-  const ctx: ToolContext = { graph, llm, now: stats?.clock || Date.now() };
+  const features = await run<{ key: string; name: string }>(graph, C13_FEATURES);
+  const repos = await run<{ id: string }>(graph, P6_REPOS);
+  const ctx: ToolContext = { graph, llm, now: now ?? (stats?.clock || Date.now()), repos: repos.map((r) => r.id) };
+
+  const context = [
+    `now = ${formatLagos(ctx.now)}`,
+    `Product features (feature keys): ${features.map((f) => `${f.key} (${f.name})`).join(", ") || "none yet"}`,
+    `Connected GitHub repositories: ${ctx.repos.join(", ") || "none"}`,
+  ].join("\n");
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: `${prompt("agent")}\n\nnow = ${formatLagos(ctx.now)}` },
+    { role: "system", content: `${prompt("agent")}\n\n${context}` },
     { role: "user", content: question },
   ];
   const nodeIds = new Set<string>();
@@ -34,8 +45,8 @@ export async function ask(graph: Graph, llm: Llm, question: string): Promise<Ans
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const response = await chatClient().chat.completions.create({
-      model: config.llm.smartModel,
-      ...modelOptions(config.llm.smartModel),
+      model: setting("smartModel"),
+      ...modelOptions(setting("smartModel")),
       messages,
       tools: TOOLS.map((t) => t.definition),
     });

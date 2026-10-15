@@ -2,7 +2,10 @@ import type { Graph } from "falkordb";
 
 /**
  * Every Cypher query Loopkeeper runs, in one place, each with a stable id.
+ *   P*  projects, WhatsApp groups and connected repos
  *   S*  seed the static world (people, schools, features, code)
+ *   IX* index a GitHub repository (files, features, owners, imports)
+ *   GH* GitHub activity (issues, pull requests, commits)
  *   W*  writes done by the ingest pipeline
  *   Q*  reads used by the dashboard and as agent tools
  */
@@ -14,6 +17,12 @@ export interface NamedQuery {
 }
 
 const query = (id: string, title: string, cypher: string): NamedQuery => ({ id, title, cypher });
+
+/*
+ * FalkorDB note: grouping an aggregation (count/collect) by a key that is null (a missing property, or a
+ * property of an OPTIONAL MATCH that found nothing) can crash the server. Every such key next to an
+ * aggregate is wrapped in coalesce(...), and the API turns '' back into "none".
+ */
 
 /** Statuses that still need someone's attention. */
 export const OPEN_STATUSES = ["open", "in_progress", "possibly_resolved"];
@@ -28,14 +37,56 @@ export async function run<T = Record<string, unknown>>(
   return reply.data ?? [];
 }
 
-// ─── Seed ────────────────────────────────────────────────────────────────────
+// ─── Projects, groups, repos ─────────────────────────────────────────────────
 
-export const S1_TENANT = query("S1", "Tenant and group", `
-  MERGE (t:Tenant {id: $tenantId})
-    ON CREATE SET t.seen = 0, t.ignored = 0, t.clock = 0
-  SET t.name = $tenantName
-  MERGE (g:Group {id: $groupId})
-  SET g.name = $groupName, g.source = $source`);
+export const P1_PROJECT = query("P1", "Create or rename the project this graph belongs to", `
+  MERGE (p:Project {id: $id})
+    ON CREATE SET p.seen = 0, p.ignored = 0, p.clock = 0, p.createdAt = $ts
+  SET p.name = $name`);
+
+export const P2_PROJECT_SUMMARY = query("P2", "Project name, counters, and how many groups and repos it has", `
+  MATCH (p:Project)
+  OPTIONAL MATCH (g:Group)
+  WITH p, count(DISTINCT g) AS groups
+  OPTIONAL MATCH (r:Repo)
+  RETURN p.id AS id, p.name AS name, p.seen AS seen, p.clock AS clock, groups, count(DISTINCT r) AS repos`);
+
+export const P3_GROUP = query("P3", "Add a WhatsApp group to the project", `
+  MERGE (g:Group {id: $id})
+    ON CREATE SET g.createdAt = $ts, g.seen = 0
+  SET g.name = $name, g.source = $source`);
+
+export const P4_GROUPS = query("P4", "The project's WhatsApp groups with message counts", `
+  MATCH (g:Group)
+  OPTIONAL MATCH (m:Message)-[:IN]->(g)
+  RETURN g.id AS id, g.name AS name, coalesce(g.source, 'whatsapp_export') AS source, coalesce(g.seen, 0) AS seen,
+         count(m) AS used, coalesce(g.lastMessageAt, 0) AS lastMessageAt
+  ORDER BY coalesce(g.createdAt, 0)`);
+
+export const P5_REPO = query("P5", "Connect a GitHub repository", `
+  MERGE (r:Repo {id: $id})
+    ON CREATE SET r.createdAt = $ts
+  SET r.url = $url, r.defaultBranch = $defaultBranch`);
+
+export const P6_REPOS = query("P6", "Connected repositories with what Loopkeeper knows about each", `
+  MATCH (r:Repo)
+  OPTIONAL MATCH (c:CodeFile {repo: r.id})
+  WITH r, count(c) AS files
+  OPTIONAL MATCH (pr:PullRequest {repo: r.id})
+  WITH r, files, count(pr) AS pullRequests
+  OPTIONAL MATCH (cm:Commit {repo: r.id})
+  RETURN r.id AS id, r.url AS url, r.defaultBranch AS defaultBranch, coalesce(r.indexedAt, 0) AS indexedAt,
+         coalesce(r.syncedAt, 0) AS syncedAt, coalesce(r.featureSource, '') AS featureSource,
+         files, pullRequests, count(cm) AS commits
+  ORDER BY r.createdAt`);
+
+export const P7_REPO_MARK = query("P7", "Remember when a repo was last indexed or synced", `
+  MATCH (r:Repo {id: $id})
+  SET r.indexedAt = coalesce($indexedAt, r.indexedAt),
+      r.syncedAt = coalesce($syncedAt, r.syncedAt),
+      r.featureSource = coalesce($featureSource, r.featureSource)`);
+
+// ─── Seed ────────────────────────────────────────────────────────────────────
 
 export const S2_SCHOOLS = query("S2", "Schools", `
   UNWIND $schools AS s
@@ -81,10 +132,12 @@ export const S7_IMPORTS = query("S7", "Code import graph", `
 // ─── Ingest writes ───────────────────────────────────────────────────────────
 
 export const W1_COUNT_MESSAGE = query("W1", "Count a message (noise is only ever counted, never stored)", `
-  MATCH (t:Tenant)
-  SET t.seen = t.seen + 1,
-      t.ignored = t.ignored + $ignored,
-      t.clock = CASE WHEN $ts > t.clock THEN $ts ELSE t.clock END`);
+  MATCH (p:Project), (g:Group {id: $groupId})
+  SET p.seen = p.seen + 1,
+      p.ignored = p.ignored + $ignored,
+      p.clock = CASE WHEN $ts > p.clock THEN $ts ELSE p.clock END,
+      g.seen = coalesce(g.seen, 0) + 1,
+      g.lastMessageAt = $ts`);
 
 export const W2_MESSAGE = query("W2", "Store a relevant message and who sent it", `
   MATCH (g:Group {id: $groupId})
@@ -130,7 +183,7 @@ export const W6_CHANGE_STATUS = query("W6", "Change an issue's status, recording
   CREATE (m)-[:CAUSED]->(sc)
   SET i.status = $to, i.updatedAt = $ts`);
 
-export const W7_CHANGE_STATUS_BY_HUMAN = query("W7", "Change an issue's status from the dashboard", `
+export const W7_CHANGE_STATUS_BY_HUMAN = query("W7", "Change an issue's status from outside the chat (dashboard, GitHub)", `
   MATCH (i:Issue {id: $issueId})
   CREATE (sc:StatusChange {id: $id, from: i.status, to: $to, at: $ts, by: $by, confidence: 1.0})
   CREATE (i)-[:HAS_CHANGE]->(sc)
@@ -214,7 +267,7 @@ export const C5_ISSUE_CARDS = query("C5", "Compact issue summaries for a set of 
   OPTIONAL MATCH (m:Message)-[:EVIDENCE_OF]->(i)
   OPTIONAL MATCH (p:Person)-[:SENT]->(m)
   OPTIONAL MATCH (p)-[:WORKS_AT]->(s:School)
-  RETURN i.id AS id, i.title AS title, i.kind AS kind, i.status AS status, i.featureKey AS feature,
+  RETURN i.id AS id, i.title AS title, coalesce(i.kind, 'bug') AS kind, i.status AS status, coalesce(i.featureKey, '') AS feature,
          collect(DISTINCT p.name) AS people, collect(DISTINCT s.name) AS schools`);
 
 export const C6_OPEN_FOLLOWUPS = query("C6", "Promises not yet kept", `
@@ -256,6 +309,11 @@ export const C11_FOLLOWUPS_TO_REMIND = query("C11", "Promises due soon or overdu
     AND NOT (:Reminder {kind: $kind})-[:FOR]->(f)
   RETURN f.id AS id, f.text AS text, f.dueAt AS dueAt, p.name AS owner, p.role AS ownerRole`);
 
+export const C13_FEATURES = query("C13", "The product features of this project", `
+  MATCH (f:Feature)
+  RETURN f.key AS key, f.name AS name, f.description AS description
+  ORDER BY key`);
+
 export const C12_PEOPLE = query("C12", "Everyone the graph knows, with role and school", `
   MATCH (p:Person)
   OPTIONAL MATCH (p)-[:WORKS_AT]->(s:School)
@@ -264,23 +322,24 @@ export const C12_PEOPLE = query("C12", "Everyone the graph knows, with role and 
 // ─── Reads for the dashboard and the agent ───────────────────────────────────
 
 export const Q0_STATS = query("Q0", "Ingest counters", `
-  MATCH (t:Tenant)
+  MATCH (p:Project)
   OPTIONAL MATCH (m:Message)
-  RETURN t.seen AS seen, t.ignored AS ignored, count(m) AS used, t.clock AS clock`);
+  RETURN p.seen AS seen, p.ignored AS ignored, count(m) AS used, p.clock AS clock`);
 
 export const Q1_OPEN_ITEMS = query("Q1", "Open items, optionally for one school / person / feature, with sources", `
   MATCH (p:Person)-[:SENT]->(m:Message)-[:EVIDENCE_OF]->(i:Issue)
   WHERE i.status IN $openStatuses
   OPTIONAL MATCH (p)-[:WORKS_AT]->(s:School)
   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(owner:Person)
-  WITH i, owner, collect(DISTINCT p.name) AS reporters, collect(DISTINCT s.name) AS schools,
+  WITH i, coalesce(owner.name, '') AS ownerName, coalesce(owner.id, '') AS ownerId,
+       collect(DISTINCT p.name) AS reporters, collect(DISTINCT s.name) AS schools,
        collect(DISTINCT m.id) AS sourceMessages
   WHERE ($school IS NULL OR any(x IN schools WHERE toLower(x) CONTAINS toLower($school)))
     AND ($person IS NULL OR any(x IN reporters WHERE toLower(x) CONTAINS toLower($person))
-         OR toLower(coalesce(owner.name, '')) CONTAINS toLower($person))
+         OR toLower(ownerName) CONTAINS toLower($person))
     AND ($feature IS NULL OR i.featureKey = $feature)
   RETURN i.id AS id, i.title AS title, i.kind AS kind, i.status AS status, i.severity AS severity,
-         owner.name AS owner, owner.id AS ownerId, reporters, schools, sourceMessages
+         ownerName AS owner, ownerId, reporters, schools, sourceMessages
   ORDER BY i.updatedAt DESC`);
 
 export const Q2_CODE_PATH = query("Q2", "Issue → feature → code files → owners (multi-hop)", `
@@ -289,8 +348,8 @@ export const Q2_CODE_PATH = query("Q2", "Issue → feature → code files → ow
   OPTIONAL MATCH (f)-[:IMPLEMENTED_IN]->(c:CodeFile)
   OPTIONAL MATCH (d:Person)-[:OWNS]->(c)
   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(a:Person)
-  RETURN f.key AS featureKey, f.name AS feature, collect(DISTINCT c.path) AS files,
-         collect(DISTINCT d.name) AS codeOwners, a.name AS assignee`);
+  RETURN coalesce(f.key, '') AS featureKey, coalesce(f.name, '') AS feature, collect(DISTINCT c.path) AS files,
+         collect(DISTINCT d.name) AS codeOwners, coalesce(a.name, '') AS assignee`);
 
 export const Q3_IMPACT = query("Q3", "Which schools use the affected feature, and which have reported it", `
   MATCH (i:Issue {id: $issueId})-[:AFFECTS]->(f:Feature)<-[:USES]-(s:School)
@@ -369,10 +428,10 @@ export const Q11_BOARD = query("Q11", "Board: every canonical issue with reporte
   OPTIONAL MATCH (p)-[:WORKS_AT]->(s:School)
   OPTIONAL MATCH (dup:Issue)-[:DUPLICATE_OF]->(i)
   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(owner:Person)
-  RETURN i.id AS id, i.title AS title, i.kind AS kind, i.status AS status, i.severity AS severity,
-         i.featureKey AS feature, i.createdAt AS createdAt, i.updatedAt AS updatedAt,
+  RETURN i.id AS id, i.title AS title, coalesce(i.kind, 'bug') AS kind, i.status AS status, coalesce(i.severity, 'medium') AS severity,
+         coalesce(i.featureKey, '') AS feature, coalesce(i.createdAt, 0) AS createdAt, coalesce(i.updatedAt, 0) AS updatedAt,
          count(DISTINCT m) AS messages, collect(DISTINCT s.name) AS schools,
-         count(DISTINCT dup) AS merged, owner.name AS owner
+         count(DISTINCT dup) AS merged, coalesce(owner.name, '') AS owner
   ORDER BY updatedAt DESC`);
 
 export const Q12_EVIDENCE = query("Q12", "The messages behind an issue", `
@@ -387,8 +446,8 @@ export const Q13_ISSUE = query("Q13", "One issue's own fields and merged duplica
   MATCH (i:Issue {id: $issueId})
   OPTIONAL MATCH (dup:Issue)-[:DUPLICATE_OF]->(i)
   OPTIONAL MATCH (f:FollowUp)-[:ABOUT]->(i)
-  RETURN i.id AS id, i.title AS title, i.summary AS summary, i.kind AS kind, i.status AS status,
-         i.severity AS severity, i.createdAt AS createdAt,
+  RETURN i.id AS id, i.title AS title, coalesce(i.summary, '') AS summary, coalesce(i.kind, 'bug') AS kind, i.status AS status,
+         coalesce(i.severity, 'medium') AS severity, coalesce(i.createdAt, 0) AS createdAt,
          collect(DISTINCT dup.title) AS mergedTitles, collect(DISTINCT dup.id) AS mergedIds,
          collect(DISTINCT f.text) AS followUps`);
 
@@ -411,11 +470,152 @@ export const Q16_DECISIONS = query("Q16", "Decisions and where they came from", 
 
 export const Q17_GRAPH_NODES = query("Q17", "Whole tenant graph: nodes (for the graph view)", `
   MATCH (n)
-  WHERE NOT n:Tenant
+  WHERE NOT n:Project AND NOT n:Repo
   RETURN coalesce(n.id, n.key, n.path) AS id, labels(n)[0] AS label,
          coalesce(n.title, n.name, n.path, n.text, n.to) AS name, n.status AS status`);
 
 export const Q18_GRAPH_EDGES = query("Q18", "Whole tenant graph: relationships (for the graph view)", `
   MATCH (a)-[r]->(b)
-  WHERE NOT a:Tenant AND NOT b:Tenant
+  WHERE NOT a:Project AND NOT b:Project AND NOT a:Repo AND NOT b:Repo
   RETURN coalesce(a.id, a.key, a.path) AS source, coalesce(b.id, b.key, b.path) AS target, type(r) AS type`);
+
+// ─── Repository index ────────────────────────────────────────────────────────
+
+export const IX1_FILES = query("IX1", "Code files of a repository", `
+  UNWIND $files AS f
+  MERGE (c:CodeFile {id: f.id})
+  SET c.path = f.path, c.repo = $repo, c.language = f.language`);
+
+export const IX2_FEATURES = query("IX2", "Product features found in a repository", `
+  UNWIND $features AS f
+  MERGE (n:Feature {key: f.key})
+  SET n.name = f.name, n.description = coalesce(f.description, n.description)`);
+
+export const IX3_FEATURE_FILES = query("IX3", "Which feature each file implements", `
+  UNWIND $links AS l
+  MATCH (feature:Feature {key: l.feature}), (c:CodeFile {id: l.fileId})
+  MERGE (feature)-[:IMPLEMENTED_IN]->(c)`);
+
+export const IX4_OWNERS = query("IX4", "Code owners from CODEOWNERS (GitHub handles become developers)", `
+  UNWIND $owners AS o
+  MERGE (p:Person {id: o.personId})
+    ON CREATE SET p.name = o.handle, p.role = 'developer'
+  SET p.githubHandle = o.handle
+  WITH p, o
+  MATCH (c:CodeFile {id: o.fileId})
+  MERGE (p)-[:OWNS]->(c)`);
+
+export const IX5_IMPORTS = query("IX5", "Import graph between files", `
+  UNWIND $imports AS i
+  MATCH (a:CodeFile {id: i.from}), (b:CodeFile {id: i.to})
+  MERGE (a)-[:IMPORTS]->(b)`);
+
+// ─── GitHub activity ─────────────────────────────────────────────────────────
+
+export const GH1_LINK_ISSUE = query("GH1", "Remember the GitHub issue that tracks a Loopkeeper issue", `
+  MATCH (i:Issue {id: $issueId})
+  SET i.githubRepo = $repo, i.githubNumber = $number, i.githubUrl = $url`);
+
+export const GH2_ISSUE_BY_NUMBER = query("GH2", "Find the Loopkeeper issue behind a GitHub issue number", `
+  MATCH (i:Issue {githubRepo: $repo, githubNumber: $number})
+  OPTIONAL MATCH (i)-[:DUPLICATE_OF]->(c:Issue)
+  RETURN coalesce(c.id, i.id) AS id`);
+
+export const GH3_GITHUB_LINK = query("GH3", "The GitHub issue linked to a Loopkeeper issue, if any", `
+  MATCH (i:Issue {id: $issueId})
+  RETURN i.githubRepo AS repo, i.githubNumber AS number, i.githubUrl AS url, i.title AS title`);
+
+export const GH4_PULL_REQUEST = query("GH4", "Record a pull request and who opened it (returns its previous state)", `
+  OPTIONAL MATCH (old:PullRequest {id: $id})
+  WITH old.state AS previousState
+  MERGE (pr:PullRequest {id: $id})
+    ON CREATE SET pr.createdAt = $createdAt
+  SET pr.repo = $repo, pr.number = $number, pr.title = $title, pr.url = $url,
+      pr.state = $state, pr.author = $author, pr.updatedAt = $updatedAt
+  MERGE (a:Person {id: $authorId})
+    ON CREATE SET a.name = $author, a.role = 'developer', a.githubHandle = $author
+  MERGE (a)-[:AUTHORED]->(pr)
+  RETURN previousState`);
+
+export const GH5_FIXED_BY = query("GH5", "Link an issue to the pull request that fixes it", `
+  MATCH (i:Issue {id: $issueId}), (pr:PullRequest {id: $prId})
+  MERGE (i)-[:FIXED_BY]->(pr)`);
+
+export const GH6_TOUCHES = query("GH6", "Files a pull request or commit changed", `
+  MATCH (x) WHERE (x:PullRequest OR x:Commit) AND x.id = $id
+  UNWIND $paths AS path
+  MATCH (c:CodeFile {repo: $repo, path: path})
+  MERGE (x)-[:TOUCHES]->(c)`);
+
+export const GH7_COMMIT = query("GH7", "Record a pushed commit (returns whether it was new)", `
+  OPTIONAL MATCH (old:Commit {id: $id})
+  WITH old IS NULL AS isNew
+  MERGE (c:Commit {id: $id})
+  SET c.sha = $sha, c.repo = $repo, c.message = $message, c.url = $url, c.author = $author, c.ts = $ts
+  MERGE (a:Person {id: $authorId})
+    ON CREATE SET a.name = $author, a.role = 'developer', a.githubHandle = $author
+  MERGE (a)-[:AUTHORED]->(c)
+  RETURN isNew`);
+
+export const GH8_COMMIT_REFERENCES = query("GH8", "Link a commit to the issue it mentions", `
+  MATCH (i:Issue {id: $issueId}), (c:Commit {id: $commitId})
+  MERGE (c)-[:REFERENCES]->(i)`);
+
+export const GH9_CODE_ACTIVITY = query("GH9", "Pull requests and commits linked to an issue", `
+  MATCH (i:Issue {id: $issueId})
+  OPTIONAL MATCH (i)-[:FIXED_BY]->(pr:PullRequest)
+  WITH i, collect(DISTINCT CASE WHEN pr IS NULL THEN null ELSE
+    {number: pr.number, title: pr.title, url: pr.url, state: pr.state, author: pr.author} END) AS pullRequests
+  OPTIONAL MATCH (c:Commit)-[:REFERENCES]->(i)
+  RETURN coalesce(i.githubRepo, '') AS githubRepo, coalesce(i.githubNumber, 0) AS githubNumber, coalesce(i.githubUrl, '') AS githubUrl, pullRequests,
+         collect(DISTINCT CASE WHEN c IS NULL THEN null ELSE
+           {sha: c.sha, message: c.message, url: c.url, author: c.author, ts: c.ts} END) AS commits`);
+
+export const GH10_ISSUE_STATUS = query("GH10", "Current status of an issue (following merges)", `
+  MATCH (i:Issue {id: $issueId})
+  OPTIONAL MATCH (i)-[:DUPLICATE_OF]->(c:Issue)
+  RETURN coalesce(c.id, i.id) AS id, coalesce(c.status, i.status) AS status, coalesce(c.title, i.title) AS title`);
+
+// ─── Housekeeping ────────────────────────────────────────────────────────────
+
+export const R1_RESET_CHAT = query("R1", "Forget everything learned from chats and GitHub; keep the project's setup", `
+  OPTIONAL MATCH (n)
+  WHERE n:Message OR n:Issue OR n:FollowUp OR n:Decision OR n:StatusChange OR n:Reminder
+     OR n:PullRequest OR n:Commit OR (n:Person AND n.role = 'unknown')
+  DETACH DELETE n
+  WITH count(*) AS removed
+  MATCH (p:Project)
+  SET p.seen = 0, p.ignored = 0
+  WITH p
+  OPTIONAL MATCH (g:Group)
+  SET g.seen = 0
+  WITH p
+  OPTIONAL MATCH (r:Repo)
+  SET r.syncedAt = null`);
+
+// ─── Managing projects, groups and repos ─────────────────────────────────────
+
+export const M1_MIGRATE_TENANT = query("M1", "Upgrade graphs created before projects existed (Tenant → Project)", `
+  MATCH (t:Tenant)
+  SET t:Project
+  REMOVE t:Tenant`);
+
+export const M2_RENAME_PROJECT = query("M2", "Rename the project", `
+  MATCH (p:Project)
+  SET p.name = $name`);
+
+export const M3_RENAME_GROUP = query("M3", "Rename a WhatsApp group", `
+  MATCH (g:Group {id: $id})
+  SET g.name = $name`);
+
+export const M4_REMOVE_GROUP = query("M4", "Disconnect a WhatsApp group (what was learned from it stays)", `
+  MATCH (g:Group {id: $id})
+  DETACH DELETE g`);
+
+export const M5_REMOVE_REPO_FILES = query("M5", "Forget a repository's files", `
+  MATCH (c:CodeFile {repo: $id})
+  DETACH DELETE c`);
+
+export const M6_REMOVE_REPO = query("M6", "Disconnect a repository", `
+  MATCH (r:Repo {id: $id})
+  DETACH DELETE r`);

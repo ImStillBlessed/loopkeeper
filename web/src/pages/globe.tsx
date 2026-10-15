@@ -4,7 +4,6 @@ import { useState } from "react";
 import { GlobeGraph, type GlobeNode } from "@/components/globe-graph";
 import { Dot } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import { useLiveQuery } from "@/lib/live";
 import { useNavigation } from "@/lib/navigation";
 import { NODE_COLORS, NODE_NAMES } from "@/lib/palette";
@@ -26,7 +25,7 @@ const KIND_NAMES: Record<string, string> = {
 /** The whole company brain as a small world. Answers and issues light up their path across it. */
 export function GlobePage() {
   const { highlight, showOnGlobe, openIssue } = useNavigation();
-  const { data } = useLiveQuery(api.graph);
+  const { data } = useLiveQuery((api) => api.graph());
   const [selected, setSelected] = useState<GlobeNode>();
 
   return (

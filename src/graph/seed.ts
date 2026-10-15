@@ -3,24 +3,31 @@ import { CAST, SCHOOLS } from "../../data/synthetic/cast.js";
 import { GROUP_NAME } from "../../data/synthetic/generator.js";
 import { CODE_FILES, DEMO_REPO, FEATURES, SCHOOL_FEATURES } from "../../data/synthetic/product.js";
 import { personId } from "../ingest/ids.js";
-import { run, S1_TENANT, S2_SCHOOLS, S3_PEOPLE, S4_WORKS_AT, S5_FEATURES, S6_CODE, S7_IMPORTS } from "./queries.js";
+import { P1_PROJECT, P3_GROUP, run, S2_SCHOOLS, S3_PEOPLE, S4_WORKS_AT, S5_FEATURES, S6_CODE, S7_IMPORTS } from "./queries.js";
 import { ensureSchema } from "./schema.js";
 
 export const DEMO_GROUP_ID = "grp_ednovax_support";
 
-/** Wipe the tenant graph. Used by "Reset demo". */
+/** Wipe a project graph. Used by "Reset". */
 export async function resetGraph(graph: Graph): Promise<void> {
   await graph.delete().catch(() => {
     // Deleting a graph that doesn't exist yet is fine.
   });
 }
 
-/**
- * Loads the world that exists before any chat is read: the client org, its group, schools,
- * people (from the contact roster), product features and the code behind them.
- */
-export async function seedWorld(graph: Graph, salt: string, tenant: string): Promise<void> {
+/** A new, empty project: just the Project node and the indexes. Groups and repos are connected later. */
+export async function createProjectGraph(graph: Graph, project: { id: string; name: string }): Promise<void> {
   await ensureSchema(graph);
+  await run(graph, P1_PROJECT, { id: project.id, name: project.name, ts: Date.now() });
+}
+
+/**
+ * The demo project: the fictional Ednovax world before any chat is read. Its schools, the people in the
+ * support group (from the contact roster), product features, and the code behind them.
+ */
+export async function seedWorld(graph: Graph, salt: string, projectId: string): Promise<void> {
+  await createProjectGraph(graph, { id: projectId, name: "Ednovax" });
+  await run(graph, P3_GROUP, { id: DEMO_GROUP_ID, name: GROUP_NAME, source: "simulator", ts: Date.now() });
 
   const idOf = (castKey: string) => {
     const member = CAST.find((m) => m.key === castKey);
@@ -28,13 +35,6 @@ export async function seedWorld(graph: Graph, salt: string, tenant: string): Pro
     return personId(member.whatsappLabel, salt);
   };
 
-  await run(graph, S1_TENANT, {
-    tenantId: tenant,
-    tenantName: "Ednovax",
-    groupId: DEMO_GROUP_ID,
-    groupName: GROUP_NAME,
-    source: "whatsapp_export",
-  });
   await run(graph, S2_SCHOOLS, { schools: SCHOOLS });
   await run(graph, S3_PEOPLE, {
     groupId: DEMO_GROUP_ID,

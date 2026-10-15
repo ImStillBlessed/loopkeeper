@@ -6,7 +6,7 @@ import { Headline, Page } from "@/components/page";
 import { FeaturesRail, LatestRail, SchoolsRail } from "@/components/rails";
 import { Dot } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { api, type BoardIssue, type FollowUpsResponse } from "@/lib/api";
+import type { BoardIssue, FollowUpsResponse } from "@/lib/api";
 import { plural, shortName } from "@/lib/format";
 import { useLive, useLiveQuery } from "@/lib/live";
 import { useNavigation } from "@/lib/navigation";
@@ -20,8 +20,8 @@ const DAY = 24 * 60 * 60 * 1000;
 export function TodayPage() {
   const live = useLive();
   const { go, openIssue } = useNavigation();
-  const { data: issues } = useLiveQuery(api.board);
-  const { data: promises } = useLiveQuery(api.followUps);
+  const { data: issues } = useLiveQuery((api) => api.board());
+  const { data: promises } = useLiveQuery((api) => api.followUps());
 
   const cards = buildCards(issues ?? [], promises, { openIssue, goToIssues: () => go("issues") });
   const nothingYet = live.seen === 0 && (issues?.length ?? 0) === 0;
@@ -36,7 +36,7 @@ export function TodayPage() {
         </>
       }
     >
-      {live.running ? (
+      {live.live ? (
         <>
           <Headline>Reading the group chat.</Headline>
           <p className="mt-8 text-title font-light text-muted">
@@ -45,7 +45,7 @@ export function TodayPage() {
           </p>
         </>
       ) : nothingYet ? (
-        <EmptyState onStart={async () => (await live.replay("normal"), go("chat"))} />
+        <EmptyState onStart={async () => (await live.goLive(), go("chat"))} />
       ) : (
         <Headline>{cards.length === 0 ? "Every loop is closed." : `${NUMBER_WORDS[cards.length]} ${cards.length === 1 ? "thing needs" : "things need"} you today.`}</Headline>
       )}
@@ -76,7 +76,7 @@ export function TodayPage() {
         </div>
       )}
 
-      {!nothingYet && !live.running && (
+      {!nothingYet && !live.live && (
         <p className="mt-16 text-lead text-faint">
           Loopkeeper has read {plural(live.seen, "message")} and set {live.ignored} aside as small talk.
         </p>

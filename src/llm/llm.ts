@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { config } from "../config.js";
+import { onSettingsChange, setting } from "../settings.js";
 import { responseCache } from "./cache.js";
 import { embedLocally } from "./embeddings.js";
 
@@ -14,14 +15,18 @@ export interface Llm {
 }
 
 let client: OpenAI | undefined;
+// A new key saved in Settings takes effect on the next call.
+onSettingsChange(() => {
+  client = undefined;
+});
 
 /** Groq speaks the OpenAI API, so the official OpenAI SDK works with a different base URL. */
 export function chatClient(): OpenAI {
-  if (!config.llm.apiKey) {
-    throw new Error("GROQ_API_KEY is not set. Get a free key at https://console.groq.com/keys and add it to .env");
+  if (!setting("groqApiKey")) {
+    throw new Error("No Groq API key yet. Add a free key (console.groq.com/keys) in Settings.");
   }
   client ??= new OpenAI({
-    apiKey: config.llm.apiKey,
+    apiKey: setting("groqApiKey"),
     baseURL: config.llm.baseURL,
     // Free tiers rate-limit hard; the SDK waits for the retry-after header and tries again.
     maxRetries: 8,
@@ -40,7 +45,7 @@ export function modelOptions(model: string, effort: "low" | "medium" = "medium")
 
 export const groqLlm: Llm = {
   async json<T>(tier: "fast" | "smart", system: string, user: unknown): Promise<T> {
-    const model = tier === "fast" ? config.llm.fastModel : config.llm.smartModel;
+    const model = setting(tier === "fast" ? "fastModel" : "smartModel");
     const content = typeof user === "string" ? user : JSON.stringify(user);
     const cacheKey = responseCache.key([model, system, content]);
     const cached = config.llm.cache ? responseCache.get<T>(cacheKey) : undefined;
