@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { PREPARED_KINDS, type PreparedKind } from "../../data/synthetic/prepared.js";
 import type { ScenarioId } from "../../data/synthetic/scenarios.js";
-import { ask } from "../agent/agent.js";
+import { askInConversation, deleteConversation, getConversation, listConversations, migrateLegacyQuestions } from "../agent/conversations.js";
 import { githubConfigured } from "../github/api.js";
 import { indexRepository } from "../github/indexer.js";
 import { openGithubIssue, syncGithubIssue } from "../github/issues.js";
@@ -263,10 +263,30 @@ projectRoutes.get("/graph", async (c) => {
   return c.json({ nodes: await run(graph, Q17_GRAPH_NODES), links: await run(graph, Q18_GRAPH_EDGES) });
 });
 
+/**
+ * Ask a question, in an existing conversation or a new one. The agent sees the conversation so far,
+ * and the conversation is remembered in the graph, linked to what its answers used.
+ */
 projectRoutes.post("/ask", async (c) => {
-  const { question } = await c.req.json<{ question: string }>();
+  const { question, conversationId } = await c.req.json<{ question: string; conversationId?: string }>();
   const runtime = c.get("runtime");
-  return c.json(await ask(runtime.graph, groqLlm, question, runtime.clock.peek()));
+  return c.json(await askInConversation(runtime.graph, groqLlm, { question, conversationId, now: runtime.clock.peek() }));
+});
+
+projectRoutes.get("/conversations", async (c) => {
+  const runtime = c.get("runtime");
+  await migrateLegacyQuestions(runtime.graph);
+  return c.json(await listConversations(runtime.graph));
+});
+
+projectRoutes.get("/conversations/:id", async (c) => {
+  const conversation = await getConversation(graphOf(c), c.req.param("id"));
+  return conversation ? c.json(conversation) : c.json({ error: "No such conversation" }, 404);
+});
+
+projectRoutes.delete("/conversations/:id", async (c) => {
+  await deleteConversation(graphOf(c), c.req.param("id"));
+  return c.json({ ok: true });
 });
 
 /** The simulator speaks as cast members by their WhatsApp label (some appear as phone numbers). */

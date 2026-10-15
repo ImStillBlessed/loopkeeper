@@ -22,7 +22,12 @@ githubWebhook.post("/:project", async (c) => {
   }
 
   const event = c.req.header("x-github-event");
-  const payload = JSON.parse(raw);
+  // GitHub's first delivery is a "ping" to check the URL works.
+  if (event === "ping") return c.json({ ok: true, pong: true });
+
+  // Webhooks can be set to application/json or application/x-www-form-urlencoded (payload=<json>).
+  const isForm = (c.req.header("content-type") ?? "").includes("x-www-form-urlencoded");
+  const payload = JSON.parse(isForm ? (new URLSearchParams(raw).get("payload") ?? "{}") : raw);
   const runtime = await getRuntime(projectId);
   const repo: string = payload.repository?.full_name;
 

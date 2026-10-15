@@ -2,6 +2,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ArrowUp, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import type { PreparedKind } from "@/lib/api";
 import { useLive, useLiveQuery } from "@/lib/live";
 import { COLORS } from "@/lib/palette";
@@ -72,18 +73,14 @@ export function Composer({ groupId }: { groupId: string | undefined }) {
         }}
         className="flex items-center gap-2 rounded-pill bg-[#1b1b21]/95 p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl"
       >
-        <select
+        <Select
           value={sender}
-          onChange={(e) => setSender(e.target.value)}
-          className="h-11 max-w-44 rounded-pill bg-surface-2 px-4 text-small text-sky outline-none"
-          aria-label="Send as"
-        >
-          {(people?.cast ?? []).map((person) => (
-            <option key={person.key} value={person.key}>
-              {person.name}
-            </option>
-          ))}
-        </select>
+          onValueChange={setSender}
+          label="Send as"
+          size="sm"
+          className="w-48 text-sky"
+          options={(people?.cast ?? []).map((person) => ({ value: person.key, label: person.name, hint: roleHint(person.role) }))}
+        />
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -121,4 +118,8 @@ function StoryMenu({ onPlay }: { onPlay: (id: string) => void }) {
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
+}
+
+function roleHint(role: string): string {
+  return role === "developer" || role === "support" ? `Ednovax ${role}` : role.charAt(0).toUpperCase() + role.slice(1);
 }

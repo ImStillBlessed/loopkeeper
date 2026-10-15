@@ -1,26 +1,28 @@
-import { ArrowUp, ChevronDown, Globe2 } from "lucide-react";
+import { ArrowUp, ChevronDown, Globe2, MessageSquarePlus, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Markdown } from "@/components/markdown";
 import { Headline, Page, RailSection } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { Answer } from "@/lib/api";
+import { Confirm } from "@/components/ui/confirm";
+import type { Answer, ConversationSummary, Turn } from "@/lib/api";
+import { formatShortDay, formatTime, plural } from "@/lib/format";
 import { useLive } from "@/lib/live";
-import { plural } from "@/lib/format";
 import { useNavigation } from "@/lib/navigation";
 import { COLORS } from "@/lib/palette";
+import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
-  "What's still open for Royal Academy, and who are we waiting on?",
+  "What's still open, and who are we waiting on?",
   "Which promises are overdue?",
-  "Who should fix the score saving problem?",
+  "Who should fix the biggest open problem, and which files are involved?",
 ];
 
 const EASE = [0.32, 0.72, 0, 1] as const;
 
 /** What the agent can look up, in plain words. Each one is a Cypher query on the graph. */
 const ABILITIES = [
-  "What's open, for any school, person or feature",
+  "What's open or resolved, for any school, person or feature",
   "The full story of one issue, from chat to code",
   "Promises that are due or overdue",
   "Who knows a part of the product best",
@@ -28,31 +30,70 @@ const ABILITIES = [
   "Which issues matter most right now",
   "How two people or things are connected",
   "Decisions the group has made",
+  "Pull requests and commits for an issue",
 ];
 
+/** A turn waiting for its answer, or one whose answer failed. */
+interface PendingTurn {
+  question: string;
+  askedAt: number;
+  error?: string;
+}
+
+/**
+ * Ask as conversations. Follow-ups continue the open conversation, and the agent sees what was said
+ * before. Each conversation is one node in the project's graph, so it is all still here after a refresh.
+ */
 export function AskPage() {
-  const [question, setQuestion] = useState("");
-  const [asked, setAsked] = useState<string>();
-  const [answer, setAnswer] = useState<Answer>();
-  const [error, setError] = useState<string>();
-  const [thinking, setThinking] = useState(false);
   const { api } = useLive();
-  const [history, setHistory] = useState<string[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [currentId, setCurrentId] = useState<string>();
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [pending, setPending] = useState<PendingTurn>();
+  const [loaded, setLoaded] = useState(false);
+  const [question, setQuestion] = useState("");
+  const end = useRef<HTMLDivElement>(null);
+  const thinking = Boolean(pending && !pending.error);
+
+  const open = useCallback(
+    async (id: string | undefined) => {
+      setCurrentId(id);
+      setPending(undefined);
+      setTurns(id ? (await api.conversation(id)).turns : []);
+    },
+    [api],
+  );
+
+  const refreshList = useCallback(async () => {
+    const list = await api.conversations();
+    setConversations(list);
+    return list;
+  }, [api]);
+
+  // Open the most recent conversation on arrival.
+  useEffect(() => {
+    refreshList()
+      .then((list) => open(list[0]?.id))
+      .finally(() => setLoaded(true));
+  }, [refreshList, open]);
+
+  // Keep the newest turn in view.
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns.length, pending]);
 
   const ask = async (text: string) => {
     if (!text.trim() || thinking) return;
-    setQuestion(text);
-    setAsked(text);
-    setAnswer(undefined);
-    setError(undefined);
-    setThinking(true);
-    setHistory((h) => [text, ...h.filter((q) => q !== text)].slice(0, 6));
+    setQuestion("");
+    setPending({ question: text, askedAt: Date.now() });
     try {
-      setAnswer(await api.ask(text));
+      const result = await api.ask(text, currentId);
+      setCurrentId(result.conversationId);
+      setTurns((all) => [...all, result.turn]);
+      setPending(undefined);
+      void refreshList();
     } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setThinking(false);
+      setPending({ question: text, askedAt: Date.now(), error: (e as Error).message });
     }
   };
 
@@ -60,6 +101,8 @@ export function AskPage() {
     event.preventDefault();
     void ask(question);
   };
+
+  const empty = loaded && turns.length === 0 && !pending;
 
   return (
     <Page
@@ -76,14 +119,45 @@ export function AskPage() {
         </RailSection>
       }
       right={
-        <RailSection title="Your recent questions">
-          {history.length === 0 ? (
-            <p className="text-small text-faint">Questions you ask will appear here.</p>
+        <RailSection title="Conversations">
+          <Button variant="secondary" size="sm" className="mb-5 w-full" onClick={() => void open(undefined)} disabled={!currentId && turns.length === 0}>
+            <MessageSquarePlus /> New conversation
+          </Button>
+          {conversations.length === 0 ? (
+            <p className="text-small text-faint">Conversations are remembered here.</p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {history.map((q) => (
-                <li key={q}>
-                  <button onClick={() => void ask(q)} className="text-left text-small text-muted transition-colors hover:text-foreground">{q}</button>
+            <ul className="flex flex-col gap-1">
+              {conversations.map((conversation) => (
+                <li key={conversation.id} className="group relative">
+                  <button
+                    onClick={() => void open(conversation.id)}
+                    className={cn(
+                      "w-full rounded-chip px-3 py-2.5 pr-10 text-left transition-colors",
+                      conversation.id === currentId ? "bg-surface-2 text-foreground" : "text-muted hover:bg-surface-1 hover:text-foreground",
+                    )}
+                  >
+                    <span className="line-clamp-2 text-small">{conversation.title}</span>
+                    <span className="mt-0.5 block text-small text-faint">
+                      {formatShortDay(conversation.updatedAt)}, {plural(conversation.turnCount, "question")}
+                    </span>
+                  </button>
+                  <Confirm
+                    title="Delete this conversation?"
+                    description={`"${conversation.title}" and its answers will be forgotten.`}
+                    action="Delete"
+                    onConfirm={async () => {
+                      await api.deleteConversation(conversation.id);
+                      const list = await refreshList();
+                      if (conversation.id === currentId) await open(list[0]?.id);
+                    }}
+                  >
+                    <button
+                      className="absolute top-2.5 right-2 grid size-7 place-items-center rounded-full text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-coral focus-visible:opacity-100"
+                      aria-label={`Delete "${conversation.title}"`}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </Confirm>
                 </li>
               ))}
             </ul>
@@ -91,51 +165,81 @@ export function AskPage() {
         </RailSection>
       }
     >
-      <Headline>Ask about any school, problem or promise.</Headline>
-
-      <form onSubmit={submit} className="relative mt-14">
-        <Input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="What's still open for Royal Academy?" aria-label="Your question" className="pr-20" />
-        <Button type="submit" size="icon" disabled={!question.trim() || thinking} className="absolute top-1.5 right-1.5" aria-label="Ask">
-          <ArrowUp />
-        </Button>
-      </form>
-
-      {!asked && (
-        <div className="mt-6 flex flex-col items-start gap-1">
-          {SUGGESTIONS.map((s) => (
-            <button key={s} onClick={() => void ask(s)} className="rounded-pill px-5 py-2.5 text-left text-body text-muted transition-colors hover:bg-surface-1 hover:text-foreground">
-              {s}
-            </button>
-          ))}
-        </div>
+      {empty && (
+        <>
+          <Headline>Ask about any school, problem or promise.</Headline>
+          <div className="mt-12 flex flex-col items-start gap-1">
+            {SUGGESTIONS.map((s) => (
+              <button key={s} onClick={() => void ask(s)} className="rounded-pill px-5 py-2.5 text-left text-body text-muted transition-colors hover:bg-surface-1 hover:text-foreground">
+                {s}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
-      <AnimatePresence mode="wait">
-        {thinking && (
-          <motion.p key="thinking" initial={{ opacity: 0 }} animate={{ opacity: [0.4, 1, 0.4] }} exit={{ opacity: 0 }} transition={{ duration: 1.6, repeat: Infinity }} className="mt-16 text-title font-light text-muted">
-            Following the threads…
-          </motion.p>
+      <div className="flex flex-col gap-16">
+        {turns.map((turn) => (
+          <motion.section key={turn.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: EASE }}>
+            <QuestionBubble text={turn.question} at={turn.askedAt} />
+            <AnswerView answer={turn.answer} />
+          </motion.section>
+        ))}
+        {pending && (
+          <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: EASE }}>
+            <QuestionBubble text={pending.question} at={pending.askedAt} />
+            {pending.error ? (
+              <p className="mt-6 text-lead text-coral">Couldn't answer that: {pending.error}</p>
+            ) : (
+              <motion.p animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.6, repeat: Infinity }} className="mt-6 text-title font-light text-muted">
+                Following the threads…
+              </motion.p>
+            )}
+          </motion.section>
         )}
-        {error && (
-          <motion.p key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-16 text-lead text-coral">
-            Couldn't answer that: {error}
-          </motion.p>
-        )}
-        {answer && <AnswerView key={asked} answer={answer} />}
-      </AnimatePresence>
+      </div>
+      <div ref={end} />
+
+      <form onSubmit={submit} className="sticky bottom-28 z-10 mt-12">
+        <div className="flex items-center gap-2 rounded-pill bg-[#1b1b21]/95 p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={turns.length ? "Ask a follow-up…" : "What's still open, and who are we waiting on?"}
+            aria-label="Your question"
+            className="h-12 min-w-0 flex-1 bg-transparent px-5 text-lead text-foreground placeholder:text-faint outline-none"
+          />
+          <Button type="submit" size="icon" disabled={!question.trim() || thinking} aria-label="Ask">
+            <ArrowUp />
+          </Button>
+        </div>
+      </form>
     </Page>
   );
 }
 
+function QuestionBubble({ text, at }: { text: string; at: number }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[85%] rounded-card rounded-tr-md px-6 py-4" style={{ backgroundColor: `color-mix(in srgb, ${COLORS.lilac} 16%, transparent)` }}>
+        <p className="text-lead text-pretty">{text}</p>
+        <p className="mt-1 text-right text-small text-faint">
+          {formatShortDay(at)}, {formatTime(at)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function AnswerView({ answer }: { answer: Answer }) {
-  const { showOnGlobe } = useNavigation();
+  const { showOnGlobe, openIssue } = useNavigation();
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
   const numbers = new Map(answer.sources.map((s, i) => [s.messageId, i + 1]));
 
   return (
-    <motion.article initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6, ease: EASE }} className="mt-16">
-      <div className="flex flex-col gap-5 text-title font-light leading-snug text-pretty">{renderAnswer(answer.answer, numbers, () => setSourcesOpen(true))}</div>
+    <motion.article initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6, ease: EASE }} className="mt-6">
+      <Markdown text={answer.answer} citations={numbers} onCite={() => setSourcesOpen(true)} onOpenIssue={openIssue} />
 
       <div className="mt-12 flex flex-wrap gap-3">
         {answer.sources.length > 0 && (
@@ -199,48 +303,4 @@ function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
       )}
     </AnimatePresence>
   );
-}
-
-/** Paragraphs and bullet lists, with **bold** and clickable citation numbers. */
-function renderAnswer(text: string, numbers: Map<string, number>, onCite: () => void): ReactNode[] {
-  const blocks: ReactNode[] = [];
-  let list: string[] = [];
-  const flush = () => {
-    if (list.length) {
-      blocks.push(
-        <ul key={`list-${blocks.length}`} className="flex list-disc flex-col gap-3 pl-7 marker:text-lilac">
-          {list.map((item, i) => <li key={i}>{inline(item, numbers, onCite)}</li>)}
-        </ul>,
-      );
-      list = [];
-    }
-  };
-  for (const line of text.split("\n")) {
-    const bullet = /^\s*(?:[-*•]|\d+\.)\s+(.*)$/.exec(line);
-    if (bullet) {
-      list.push(bullet[1]);
-      continue;
-    }
-    flush();
-    if (line.trim()) blocks.push(<p key={`p-${blocks.length}`}>{inline(line, numbers, onCite)}</p>);
-  }
-  flush();
-  return blocks;
-}
-
-function inline(text: string, numbers: Map<string, number>, onCite: () => void): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*|\[msg_[a-f0-9]+\])/g).map((part, i) => {
-    const bold = /^\*\*(.+)\*\*$/.exec(part);
-    if (bold) return <strong key={i} className="font-medium">{bold[1]}</strong>;
-    const cite = /^\[(msg_[a-f0-9]+)\]$/.exec(part);
-    if (cite) {
-      const n = numbers.get(cite[1]);
-      return n ? (
-        <button key={i} onClick={onCite} className="mx-0.5 inline-grid size-6 -translate-y-1 place-items-center rounded-full align-middle text-[12px] font-medium text-black" style={{ backgroundColor: COLORS.mint }}>
-          {n}
-        </button>
-      ) : null;
-    }
-    return part;
-  });
 }

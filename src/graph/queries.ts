@@ -581,7 +581,7 @@ export const GH10_ISSUE_STATUS = query("GH10", "Current status of an issue (foll
 export const R1_RESET_CHAT = query("R1", "Forget everything learned from chats and GitHub; keep the project's setup", `
   OPTIONAL MATCH (n)
   WHERE n:Message OR n:Issue OR n:FollowUp OR n:Decision OR n:StatusChange OR n:Reminder
-     OR n:PullRequest OR n:Commit OR (n:Person AND n.role = 'unknown')
+     OR n:PullRequest OR n:Commit OR n:Question OR n:Conversation OR (n:Person AND n.role = 'unknown')
   DETACH DELETE n
   WITH count(*) AS removed
   MATCH (p:Project)
@@ -619,3 +619,61 @@ export const M5_REMOVE_REPO_FILES = query("M5", "Forget a repository's files", `
 export const M6_REMOVE_REPO = query("M6", "Disconnect a repository", `
   MATCH (r:Repo {id: $id})
   DETACH DELETE r`);
+
+// ─── Restoring the feed after a restart ──────────────────────────────────────
+
+export const F1_RECENT_MESSAGES = query("F1", "The latest stored messages with what Loopkeeper did with each (small talk is never stored)", `
+  MATCH (p:Person)-[:SENT]->(m:Message)-[:IN]->(g:Group)
+  WITH p, m, g
+  ORDER BY m.ts DESC
+  LIMIT $limit
+  OPTIONAL MATCH (m)-[e:EVIDENCE_OF]->(i:Issue)
+  RETURN m.id AS id, g.id AS groupId, m.ts AS ts, p.name AS senderName, coalesce(m.text, '') AS text,
+         coalesce(m.hasMedia, false) AS hasMedia, coalesce(m.type, 'status_update') AS type,
+         collect(CASE WHEN i IS NULL THEN null ELSE {kind: e.kind, issueId: i.id, title: i.title} END) AS evidence`);
+
+export const F2_RECENT_REMINDERS = query("F2", "Reminders the bot posted, for the restored feed", `
+  MATCH (r:Reminder)
+  RETURN r.text AS text, r.sentAt AS sentAt
+  ORDER BY sentAt DESC
+  LIMIT $limit`);
+
+// ─── Ask conversations (the agent's memory of what it was asked) ─────────────
+
+export const CV1_CREATE_CONVERSATION = query("CV1", "Start a conversation", `
+  CREATE (:Conversation {id: $id, title: $title, startedAt: $ts, updatedAt: $ts, turnCount: 0, turnsJson: '[]'})`);
+
+export const CV2_SAVE_TURNS = query("CV2", "Save a conversation's turns (questions and answers, in order)", `
+  MATCH (c:Conversation {id: $id})
+  SET c.turnsJson = $turnsJson, c.turnCount = $turnCount, c.updatedAt = $ts`);
+
+export const CV3_LINK_CONVERSATION = query("CV3", "Link a conversation to the messages, issues and people its answers used", `
+  MATCH (c:Conversation {id: $id})
+  MATCH (n)
+  WHERE n.id IN $nodeIds AND (n:Message OR n:Issue OR n:Person OR n:FollowUp OR n:Decision OR n:School)
+  MERGE (c)-[:USED]->(n)`);
+
+export const CV4_CONVERSATIONS = query("CV4", "Recent conversations", `
+  MATCH (c:Conversation)
+  RETURN c.id AS id, c.title AS title, c.startedAt AS startedAt, c.updatedAt AS updatedAt, c.turnCount AS turnCount
+  ORDER BY updatedAt DESC
+  LIMIT $limit`);
+
+export const CV5_CONVERSATION = query("CV5", "One conversation with all its turns", `
+  MATCH (c:Conversation {id: $id})
+  RETURN c.id AS id, c.title AS title, c.turnsJson AS turnsJson`);
+
+export const CV6_DELETE_CONVERSATION = query("CV6", "Delete a conversation", `
+  MATCH (c:Conversation {id: $id})
+  DETACH DELETE c`);
+
+/** Older graphs stored each question on its own; these are read once and turned into conversations. */
+export const CV7_LEGACY_QUESTIONS = query("CV7", "Questions stored before conversations existed", `
+  MATCH (q:Question)
+  RETURN q.id AS id, q.text AS question, q.answerJson AS answerJson, q.askedAt AS askedAt
+  ORDER BY askedAt`);
+
+export const CV8_DELETE_LEGACY_QUESTIONS = query("CV8", "Remove migrated questions", `
+  MATCH (q:Question)
+  DETACH DELETE q`);
+

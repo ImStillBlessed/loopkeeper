@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { Select } from "@/components/ui/select";
 import { appApi, type Group, type GroupSource } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { useLive, useLiveQuery } from "@/lib/live";
@@ -35,7 +36,7 @@ function ProjectName() {
   return (
     <Block title="Project" description="Each project is its own graph in FalkorDB: its chats, issues, people and code never mix with another project's.">
       <form
-        className="flex flex-wrap gap-3"
+        className="flex flex-wrap items-center gap-3"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!current || !changed) return;
@@ -79,22 +80,23 @@ function Groups() {
       ))}
 
       <form
-        className="mt-6 flex flex-wrap gap-3 border-t border-hairline pt-6"
+        className="mt-6 flex flex-wrap items-center gap-3 border-t border-hairline pt-6"
         onSubmit={(e) => {
           e.preventDefault();
           void add();
         }}
       >
         <Field value={name} onChange={(e) => setName(e.target.value)} placeholder="New group, e.g. Lagos schools" className="min-w-56 flex-1" aria-label="Group name" />
-        <select
+        <Select
           value={source}
-          onChange={(e) => setSource(e.target.value as GroupSource)}
-          className="h-12 rounded-pill bg-surface-2 px-5 text-body text-foreground outline-none"
-          aria-label="Where messages come from"
-        >
-          <option value="simulator">Simulated (live)</option>
-          <option value="whatsapp_export">From a WhatsApp export</option>
-        </select>
+          onValueChange={(value) => setSource(value as GroupSource)}
+          label="Where messages come from"
+          className="w-60"
+          options={[
+            { value: "simulator", label: "Simulated", hint: "Driven by Go live, the composer or the CLI" },
+            { value: "whatsapp_export", label: "WhatsApp export", hint: "Import a .txt file into it" },
+          ]}
+        />
         <Button type="submit" disabled={!name.trim()}>
           Add group
         </Button>
@@ -118,7 +120,7 @@ function GroupRow({ group }: { group: Group }) {
       <div className="min-w-0 flex-1">
         {editing ? (
           <form
-            className="flex gap-2"
+            className="flex items-center gap-2"
             onSubmit={async (e) => {
               e.preventDefault();
               await live.api.renameGroup(group.id, name);
@@ -253,7 +255,7 @@ function Repositories({ onOpenKeys }: { onOpenKeys: () => void }) {
       ))}
 
       <form
-        className="mt-6 flex flex-wrap gap-3 border-t border-hairline pt-6"
+        className="mt-6 flex flex-wrap items-center gap-3 border-t border-hairline pt-6"
         onSubmit={(e) => {
           e.preventDefault();
           void connect();

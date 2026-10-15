@@ -95,7 +95,7 @@ function SecretRow({ label, help, link, value, onSave }: (typeof SECRETS)[number
           )}
         </p>
         <form
-          className="mt-4 flex flex-wrap gap-3"
+          className="mt-4 flex flex-wrap items-center gap-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (draft.trim()) void submit(draft);

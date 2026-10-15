@@ -54,10 +54,26 @@ function tool(name: string, description: string, properties: Record<string, obje
   return {
     definition: {
       type: "function",
-      function: { name, description, parameters: { type: "object", properties, required, additionalProperties: false } },
+      function: { name, description, parameters: { type: "object", properties: allowNullWhenOptional(properties, required), required, additionalProperties: false } },
     },
     execute,
   };
+}
+
+/**
+ * Some models fill optional parameters with null instead of leaving them out, and Groq rejects a
+ * tool call that doesn't match the schema. Optional parameters therefore accept null too
+ * (the tools already treat null as "not given").
+ */
+function allowNullWhenOptional(properties: Record<string, object>, required: string[]): Record<string, object> {
+  return Object.fromEntries(
+    Object.entries(properties).map(([key, schema]) => {
+      const type = (schema as { type?: string }).type;
+      if (required.includes(key) || !type) return [key, schema];
+      const { enum: allowed, ...rest } = schema as { enum?: unknown[] };
+      return [key, { ...rest, type: [type, "null"], ...(allowed ? { enum: [...allowed, null] } : {}) }];
+    }),
+  );
 }
 
 const FEATURE_KEY = { type: "string", description: "Product feature key, from the list in your instructions" };
@@ -65,13 +81,20 @@ const ISSUE_ID = { type: "string", description: "Issue id, starts with iss_" };
 
 export const TOOLS: Tool[] = [
   tool(
-    "list_open_items",
-    "List open issues (open, in progress, possibly resolved) with reporters, schools, owner and source message ids. Filter by school name, person name and/or feature.",
-    { school: { type: "string" }, person: { type: "string" }, feature: FEATURE_KEY },
+    "list_issues",
+    "List issues with their status, reporters, schools, owner and source message ids. By default only open ones (open, in progress, possibly resolved); use status 'resolved' or 'all' for the rest. Filter by school name, person name and/or feature.",
+    {
+      status: { type: "string", enum: ["open", "resolved", "all"], description: "Which issues: open (default), resolved, or all" },
+      school: { type: "string" },
+      person: { type: "string" },
+      feature: FEATURE_KEY,
+    },
     [],
     async (args, { graph }) => {
+      const status = str(args.status) ?? "open";
+      const statuses = status === "resolved" ? ["resolved"] : status === "all" ? [...OPEN_STATUSES, "resolved"] : OPEN_STATUSES;
       const rows = await run<{ id: string; ownerId: string | null; sourceMessages: string[] }>(graph, Q1_OPEN_ITEMS, {
-        openStatuses: OPEN_STATUSES,
+        openStatuses: statuses,
         school: str(args.school),
         person: str(args.person),
         feature: str(args.feature),

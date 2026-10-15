@@ -19,7 +19,7 @@ export function NavPill() {
   return (
     <nav
       aria-label="Pages"
-      className="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 gap-1 rounded-pill bg-[#1a1a1d]/85 p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+      className="fixed inset-x-0 bottom-6 z-30 mx-auto flex w-fit gap-1 rounded-pill bg-[#1a1a1d]/85 p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl"
     >
       {ITEMS.map(({ page: item, label, icon: Icon }) => {
         const active = item === page;

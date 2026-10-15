@@ -127,12 +127,19 @@ describe("agent tools run against the graph", () => {
   const ctx = () => ({ graph, llm, now: Date.parse("2026-10-11T20:00:00+01:00"), repos: [] });
   const call = (name: string, args: Record<string, unknown>) => TOOLS_BY_NAME.get(name)!.execute(args, ctx());
 
-  it("list_open_items filters by school and returns sources", async () => {
-    const result = await call("list_open_items", { school: "royal" });
+  it("list_issues filters by school and returns sources", async () => {
+    const result = await call("list_issues", { school: "royal" });
     const rows = result.data as Array<{ title: string; sourceMessages: string[] }>;
     expect(rows.map((r) => r.title)).toContain("Scores not saving after exam");
     expect(rows.every((r) => r.sourceMessages.length > 0)).toBe(true);
     expect(result.nodeIds.length).toBeGreaterThan(0);
+  });
+
+  it("list_issues can show resolved issues, and accepts null for filters it wasn't given", async () => {
+    const result = await call("list_issues", { status: "resolved", school: null, person: null, feature: null });
+    const rows = result.data as Array<{ title: string; status: string }>;
+    expect(rows.map((r) => r.title)).toContain("CBT timer missing on Tecno phones");
+    expect(rows.every((r) => r.status === "resolved")).toBe(true);
   });
 
   it("get_issue_context, impact_of, who_knows, priority, decisions, follow-ups and search all answer", async () => {

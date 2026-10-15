@@ -97,3 +97,21 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Code highlighting (highlight.js classes) in the colour language. */
+.markdown .hljs-keyword,
+.markdown .hljs-built_in,
+.markdown .hljs-selector-tag { color: var(--color-lilac); }
+.markdown .hljs-string,
+.markdown .hljs-attr,
+.markdown .hljs-template-variable { color: var(--color-mint); }
+.markdown .hljs-number,
+.markdown .hljs-literal,
+.markdown .hljs-variable { color: var(--color-sunflower); }
+.markdown .hljs-title,
+.markdown .hljs-function,
+.markdown .hljs-type { color: var(--color-sky); }
+.markdown .hljs-comment,
+.markdown .hljs-quote { color: var(--color-faint); font-style: italic; }
+.markdown .hljs-deletion,
+.markdown .hljs-meta { color: var(--color-coral); }

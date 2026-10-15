@@ -4,12 +4,14 @@ import { githubConfigured } from "../github/api.js";
 import { syncRepositories, type ActivitySink } from "../github/activity.js";
 import { syncGithubIssue } from "../github/issues.js";
 import { getProjectGraph } from "../graph/client.js";
-import { P2_PROJECT_SUMMARY, P6_REPOS, Q0_STATS, R1_RESET_CHAT, run } from "../graph/queries.js";
-import { makeLiveMessage } from "../ingest/live.js";
+import { F1_RECENT_MESSAGES, F2_RECENT_REMINDERS, P2_PROJECT_SUMMARY, P6_REPOS, Q0_STATS, R1_RESET_CHAT, run } from "../graph/queries.js";
+import { makeLiveMessage, toLagosIso } from "../ingest/live.js";
 import { parseWhatsAppExport } from "../ingest/whatsapp-export.js";
-import { groqLlm } from "../llm/llm.js";
+import { groqLlm, ProviderLimitError } from "../llm/llm.js";
 import { sendDueReminders } from "../pipeline/reminders.js";
+import type { MessageType } from "../pipeline/message-types.js";
 import { ingestMessages, type PipelineOptions } from "../pipeline/runner.js";
+import type { PipelineEvent } from "../pipeline/types.js";
 import { ChatClock } from "./clock.js";
 import { EventHub } from "./hub.js";
 import { Inbox } from "./inbox.js";
@@ -38,7 +40,7 @@ export class ProjectRuntime {
     this.clock = new ChatClock(clockStart);
     this.inbox = new Inbox(
       async () => this.pipelineOptions(),
-      (error) => this.hub.emit({ kind: "run", state: "failed", error: error.message }),
+      (error) => this.reportPipelineError(error),
     );
     this.simulator = new Simulator(
       this.clock,
@@ -51,8 +53,30 @@ export class ProjectRuntime {
     const graph = await getProjectGraph(id);
     const [summary] = await run<{ clock: number }>(graph, P2_PROJECT_SUMMARY);
     const runtime = new ProjectRuntime(id, graph, summary?.clock ?? 0);
+    await runtime.restoreFeed();
     runtime.startTimers();
     return runtime;
+  }
+
+  /**
+   * The live feed is kept in memory, so after a restart it is rebuilt from the graph: every stored
+   * message, a line on what Loopkeeper did with it, and the reminders it sent. Small talk was never
+   * stored (by design), so it doesn't come back.
+   */
+  private async restoreFeed(): Promise<void> {
+    const [messages, reminders, stats] = await Promise.all([
+      run<RestoredMessage>(this.graph, F1_RECENT_MESSAGES, { limit: FEED_RESTORE_LIMIT }),
+      run<{ text: string; sentAt: number }>(this.graph, F2_RECENT_REMINDERS, { limit: FEED_RESTORE_LIMIT }),
+      run<{ seen: number; ignored: number; used: number }>(this.graph, Q0_STATS),
+    ]);
+
+    const timeline: Array<{ ts: number; events: PipelineEvent[] }> = [
+      ...messages.map((m) => ({ ts: m.ts, events: restoredMessageEvents(m) })),
+      ...reminders.map((r) => ({ ts: r.sentAt, events: [{ kind: "bot", text: r.text, ts: new Date(r.sentAt).toISOString() } as PipelineEvent] })),
+    ].sort((a, b) => a.ts - b.ts);
+
+    for (const entry of timeline) entry.events.forEach((event) => this.hub.emit(event));
+    if (stats[0]) this.hub.emit({ kind: "stats", ...stats[0] });
   }
 
   /** A message arrives from a WhatsApp group (simulated, typed in the CLI, or a real webhook). */
@@ -71,7 +95,7 @@ export class ProjectRuntime {
     void this.pipelineOptions()
       .then((options) => ingestMessages(messages, { ...options, signal: controller.signal }))
       .then(() => this.hub.emit({ kind: "run", state: controller.signal.aborted ? "stopped" : "finished" }))
-      .catch((error: Error) => this.hub.emit({ kind: "run", state: "failed", error: error.message }));
+      .catch((error: Error) => this.reportPipelineError(error));
     return messages.length;
   }
 
@@ -89,6 +113,29 @@ export class ProjectRuntime {
   async stats() {
     const [stats] = await run<{ seen: number; ignored: number; used: number }>(this.graph, Q0_STATS);
     return { ...(stats ?? { seen: 0, ignored: 0, used: 0 }), clock: this.clock.peek(), live: this.simulator.running, liveGroupId: this.simulator.groupId ?? null };
+  }
+
+  /**
+   * When the model provider says no (out of credits, rate limit, bad key), every new message would
+   * fail the same way, so the live chat pauses and the error is reported once, in plain words.
+   */
+  private reportPipelineError(error: Error): void {
+    const status = (error as Error & { status?: number }).status;
+    const providerRefused = status === 401 || status === 402 || status === 429 || /rate limit|quota|credit|api key/i.test(error.message);
+    if (providerRefused) {
+      const wasLive = this.simulator.running;
+      this.simulator.stop();
+      // Messages still waiting would fail the same way; drop them instead of repeating the error.
+      this.inbox.clear();
+      const paused = wasLive ? " Live chat is paused." : "";
+      const reason =
+        error instanceof ProviderLimitError
+          ? `Couldn't read new messages. ${error.message}${paused}`
+          : `Couldn't read new messages: ${status === 401 ? "the Groq key was rejected" : "Groq refused the request"}.${paused} Check the key in Settings, or wait a minute and try again.`;
+      this.hub.emit({ kind: "run", state: "failed", error: reason });
+      return;
+    }
+    this.hub.emit({ kind: "run", state: "failed", error: error.message });
   }
 
   emitLive(): void {
@@ -166,4 +213,38 @@ export function getRuntime(projectId: string): Promise<ProjectRuntime> {
     runtimes.set(projectId, runtime);
   }
   return runtime;
+}
+
+const FEED_RESTORE_LIMIT = 300;
+
+interface RestoredMessage {
+  id: string;
+  groupId: string;
+  ts: number;
+  senderName: string;
+  text: string;
+  hasMedia: boolean;
+  type: string;
+  evidence: Array<{ kind: string; issueId: string; title: string }>;
+}
+
+const EVIDENCE_WORDS: Record<string, string> = {
+  reported: "Opened",
+  confirmed: "Added to",
+  more_info: "Added to",
+  in_progress: "Marked being worked on:",
+  resolved: "Marked resolved:",
+  reopened: "Reopened",
+};
+
+/** A stored message as feed events: the message itself, then what Loopkeeper did with it. */
+function restoredMessageEvents(m: RestoredMessage): PipelineEvent[] {
+  const ts = toLagosIso(m.ts);
+  return [
+    {
+      kind: "message",
+      message: { id: m.id, groupId: m.groupId, ts, senderName: m.senderName, text: m.text, hasMedia: m.hasMedia, relevant: true, type: m.type as MessageType },
+    },
+    ...m.evidence.map((e): PipelineEvent => ({ kind: "activity", text: `${EVIDENCE_WORDS[e.kind] ?? "Linked to"} "${e.title}"`, issueId: e.issueId, ts })),
+  ];
 }

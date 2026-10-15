@@ -5,6 +5,8 @@ export interface Session {
   api: LoopkeeperApi;
   project: string;
   groupId: string | undefined;
+  /** The Ask conversation follow-ups continue; undefined starts a new one. */
+  conversationId?: string;
   showSmallTalk: boolean;
   print: (line?: string) => void;
   /** (Re)connect the live feed after switching project. */
@@ -60,7 +62,7 @@ export const COMMANDS: Record<string, Command> = {
       session.print(color.bold("\n  Control the live chat"));
       for (const name of ["live", "pause", "time", "smalltalk", "status", "reset"]) line(session, name);
       session.print(color.bold("\n  Projects, groups and GitHub"));
-      for (const name of ["projects", "use", "new-project", "groups", "group", "new-group", "people", "repos", "connect", "sync", "github", "ask"]) line(session, name);
+      for (const name of ["projects", "use", "new-project", "groups", "group", "new-group", "people", "repos", "connect", "sync", "github", "ask", "new-chat"]) line(session, name);
       session.print(color.faint("\n  quit to leave\n"));
     },
   },
@@ -168,6 +170,7 @@ export const COMMANDS: Record<string, Command> = {
       if (!projects.some((project) => project.id === args.trim())) return session.print(color.coral(`  No project "${args.trim()}". Try "projects".`));
       session.project = args.trim();
       session.groupId = undefined;
+      session.conversationId = undefined;
       session.follow();
       session.print(color.mint(`  Now in ${session.project}.`));
     },
@@ -261,14 +264,28 @@ export const COMMANDS: Record<string, Command> = {
   },
   ask: {
     usage: "ask <question>",
-    help: "Ask Loopkeeper anything about this project",
+    help: "Ask Loopkeeper anything; follow-ups keep the conversation",
     run: async (args, session) => {
       session.print(color.faint("  Following the threads…"));
-      const answer = await session.api.post<{ answer: string; sources: Array<{ messageId: string; sender: string }> }>(`${p(session)}/ask`, { question: args });
+      const { conversationId, turn } = await session.api.post<{ conversationId: string; turn: { answer: { answer: string; sources: Array<{ messageId: string; sender: string }> } } }>(
+        `${p(session)}/ask`,
+        { question: args, conversationId: session.conversationId },
+      );
+      session.conversationId = conversationId;
+      const answer = turn.answer;
       const numbers = new Map(answer.sources.map((s, i) => [s.messageId, i + 1]));
       const text = answer.answer.replace(/\[(msg_[a-f0-9]+)\]/g, (_, id: string) => (numbers.has(id) ? color.mint(`[${numbers.get(id)}]`) : ""));
       session.print(`\n${text.split("\n").map((l) => `  ${l}`).join("\n")}\n`);
       answer.sources.forEach((s, i) => session.print(color.faint(`  [${i + 1}] ${s.sender}`)));
+      session.print(color.faint('  (follow-ups continue this conversation; "new-chat" starts another)'));
+    },
+  },
+  "new-chat": {
+    usage: "new-chat",
+    help: "Start a new Ask conversation",
+    run: async (_args, session) => {
+      session.conversationId = undefined;
+      session.print(color.muted("  Next question starts a new conversation."));
     },
   },
 };

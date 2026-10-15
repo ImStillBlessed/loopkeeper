@@ -22,6 +22,7 @@ export const NODE_COLORS: Record<string, string> = {
   Feature: COLORS.lilac,
   CodeFile: COLORS.lilac,
   Group: COLORS.sky,
+  Question: "#F5A3D7",
   StatusChange: "#6E6E78",
   Reminder: "#6E6E78",
 };

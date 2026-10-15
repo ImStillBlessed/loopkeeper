@@ -152,6 +152,23 @@ export interface Answer {
   toolCalls: Array<{ tool: string; args: unknown }>;
 }
 
+/** One question and its answer inside an Ask conversation. */
+export interface Turn {
+  id: string;
+  question: string;
+  askedAt: number;
+  answer: Answer;
+}
+
+/** An Ask conversation, remembered in the project's graph. */
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  startedAt: number;
+  updatedAt: number;
+  turnCount: number;
+}
+
 export type PreparedKind = "issue" | "greeting" | "question" | "promise" | "fixed";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -187,7 +204,11 @@ export function projectApi(project: string) {
     openGithubIssue: (id: string) => send<{ number: number; url: string }>("POST", `${p}/issues/${id}/github`),
     followUps: () => request<FollowUpsResponse>(`${p}/followups`),
     graph: () => request<GraphData>(`${p}/graph`),
-    ask: (question: string) => send<Answer>("POST", `${p}/ask`, { question }),
+    ask: (question: string, conversationId?: string) =>
+      send<{ conversationId: string; title: string; turn: Turn }>("POST", `${p}/ask`, { question, conversationId }),
+    conversations: () => request<ConversationSummary[]>(`${p}/conversations`),
+    conversation: (id: string) => request<{ id: string; title: string; turns: Turn[] }>(`${p}/conversations/${id}`),
+    deleteConversation: (id: string) => request(`${p}/conversations/${id}`, { method: "DELETE" }),
     reset: () => send("POST", `${p}/reset`),
 
     groups: () => request<Group[]>(`${p}/groups`),

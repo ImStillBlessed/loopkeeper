@@ -70,7 +70,7 @@ export function AllProjects() {
 
       <Block title="New project" description="Starts empty, with one simulated WhatsApp group so you can try it straight away. Connect a repository afterwards.">
         <form
-          className="flex flex-wrap gap-3"
+          className="flex flex-wrap items-center gap-3"
           onSubmit={(e) => {
             e.preventDefault();
             void create();

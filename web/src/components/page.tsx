@@ -23,9 +23,9 @@ export function Page({ children, left, right, className }: PageProps) {
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
       transition={{ duration: 0.55, ease: EASE }}
-      className="absolute inset-0 overflow-y-auto"
+      className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable_both-edges]"
     >
-      <div className="mx-auto grid max-w-[1480px] grid-cols-1 gap-16 px-8 pt-32 pb-40 xl:grid-cols-[260px_minmax(0,1fr)_300px] xl:px-12">
+      <div className="mx-auto grid max-w-[1480px] grid-cols-1 gap-16 px-8 pt-32 pb-40 xl:grid-cols-[280px_minmax(0,1fr)_280px] xl:px-12">
         <aside className="hidden xl:block">{left && <Rail delay={0.25}>{left}</Rail>}</aside>
         <div className={cn("mx-auto w-full max-w-3xl", className)}>{children}</div>
         <aside className="hidden xl:block">{right && <Rail delay={0.35}>{right}</Rail>}</aside>

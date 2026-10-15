@@ -19,6 +19,7 @@ interface LiveState {
   version: number;
   goLive: (groupId?: string) => Promise<void>;
   pause: () => Promise<void>;
+  dismissError: () => void;
   advanceClock: (hours: number) => Promise<void>;
   reset: () => Promise<void>;
   touch: () => void;
@@ -73,13 +74,17 @@ export function LiveProvider({ project, children }: { project: string; children:
     error,
     version,
     touch: () => setVersion((v) => v + 1),
+    // Update the button from the response right away; the event stream confirms it later.
     goLive: async (groupId) => {
       setError(undefined);
-      await api.goLive(groupId);
+      const stats = await api.goLive(groupId);
+      setLiveState({ live: stats.live, liveGroupId: stats.liveGroupId ?? undefined, clock: stats.clock });
     },
     pause: async () => {
-      await api.pause();
+      const stats = await api.pause();
+      setLiveState({ live: stats.live, liveGroupId: stats.liveGroupId ?? undefined, clock: stats.clock });
     },
+    dismissError: () => setError(undefined),
     advanceClock: async (hours) => {
       const stats = await api.advanceClock(hours);
       setLiveState((s) => ({ ...s, clock: stats.clock }));
