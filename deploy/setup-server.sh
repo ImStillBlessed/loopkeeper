@@ -23,6 +23,11 @@ cd "$APP_DIR" || fail "$APP_DIR doesn't exist yet. Push to main once so GitHub A
 [ -n "$NODE_BIN" ] || fail "Node.js isn't installed (or not on PATH). Install Node 20.19 or newer first."
 "$NODE_BIN" -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 20 || (major === 20 && minor >= 19) ? 0 : 1)' || fail "Node $("$NODE_BIN" -v) is too old: the desk needs 20.19 or newer."
 command -v docker >/dev/null || fail "Docker isn't installed. The desk's FalkorDB runs in Docker."
+# Users outside the docker group need sudo for Docker.
+DOCKER=docker
+docker info >/dev/null 2>&1 || DOCKER="sudo docker"
+$DOCKER compose version >/dev/null 2>&1 || fail "Docker Compose v2 is missing (the docker compose command). Install the docker-compose-plugin package."
+compose() { $DOCKER compose -p support-desk -f deploy/docker-compose.yml --env-file .env "$@"; }
 
 say "Writing .env (kept if it exists)"
 if [ ! -f .env ]; then
@@ -60,14 +65,14 @@ if ! systemctl is-active --quiet "$SERVICE" && port_busy "$API_PORT"; then
   show_port "$API_PORT"
   fail "Port $API_PORT is used by another program. Change it in this script, deploy/nginx-$DOMAIN.conf and .env."
 fi
-if [ -z "$(docker compose -p support-desk -f deploy/docker-compose.yml --env-file .env ps -q falkordb 2>/dev/null)" ] && port_busy "$DB_PORT"; then
+if [ -z "$(compose ps -q falkordb 2>/dev/null)" ] && port_busy "$DB_PORT"; then
   show_port "$DB_PORT"
   fail "Port $DB_PORT is used by another program. Change it in this script and in .env (FALKORDB_PORT)."
 fi
 echo "Both free (or already the desk's own)."
 
 say "Starting FalkorDB (Docker, 127.0.0.1:$DB_PORT)"
-docker compose -p support-desk -f deploy/docker-compose.yml --env-file .env up -d
+compose up -d
 
 say "Installing dependencies and building the dashboard"
 npm install --no-audit --no-fund
