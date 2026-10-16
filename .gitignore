@@ -3,7 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
-package-lock.json
 /READMES
 web/dist/
 .cache/
