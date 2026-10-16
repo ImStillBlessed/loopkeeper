@@ -20,8 +20,8 @@ say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 fail() { printf '\033[31m%s\033[0m\n' "$1" >&2; exit 1; }
 
 cd "$APP_DIR" || fail "$APP_DIR doesn't exist yet. Push to main once so GitHub Actions copies the code, then run this again."
-[ -n "$NODE_BIN" ] || fail "Node.js isn't installed (or not on PATH). Install Node 22 or newer first."
-"$NODE_BIN" -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' || fail "Node $("$NODE_BIN" -v) is too old: the desk needs 22 or newer."
+[ -n "$NODE_BIN" ] || fail "Node.js isn't installed (or not on PATH). Install Node 20.19 or newer first."
+"$NODE_BIN" -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 20 || (major === 20 && minor >= 19) ? 0 : 1)' || fail "Node $("$NODE_BIN" -v) is too old: the desk needs 20.19 or newer."
 command -v docker >/dev/null || fail "Docker isn't installed. The desk's FalkorDB runs in Docker."
 
 say "Writing .env (kept if it exists)"
