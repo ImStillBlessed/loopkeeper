@@ -81,8 +81,8 @@ export const P4_GROUPS = query("P4", "The project's WhatsApp groups with message
   MATCH (g:Group)
   OPTIONAL MATCH (m:Message)-[:IN]->(g)
   RETURN g.id AS id, g.name AS name, coalesce(g.source, 'whatsapp_export') AS source, coalesce(g.seen, 0) AS seen,
-         count(m) AS used, coalesce(g.lastMessageAt, 0) AS lastMessageAt
-  ORDER BY coalesce(g.createdAt, 0)`);
+         count(m) AS used, coalesce(g.lastMessageAt, 0) AS lastMessageAt, coalesce(g.createdAt, 0) AS createdAt
+  ORDER BY createdAt`);
 
 export const P5_REPO = query("P5", "Connect a GitHub repository", `
   MERGE (r:Repo {id: $id})
@@ -98,8 +98,8 @@ export const P6_REPOS = query("P6", "Connected repositories with what Loopkeeper
   OPTIONAL MATCH (cm:Commit {repo: r.id})
   RETURN r.id AS id, r.url AS url, r.defaultBranch AS defaultBranch, coalesce(r.indexedAt, 0) AS indexedAt,
          coalesce(r.syncedAt, 0) AS syncedAt, coalesce(r.featureSource, '') AS featureSource,
-         files, pullRequests, count(cm) AS commits
-  ORDER BY r.createdAt`);
+         files, pullRequests, count(cm) AS commits, coalesce(r.createdAt, 0) AS createdAt
+  ORDER BY createdAt`);
 
 export const P7_REPO_MARK = query("P7", "Remember when a repo was last indexed or synced", `
   MATCH (r:Repo {id: $id})
