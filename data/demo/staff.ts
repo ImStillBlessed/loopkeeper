@@ -14,9 +14,6 @@ export interface StaffSeed {
   title: string;
 }
 
-/** Shown on the login screen so judges can sign in. */
-export const DEMO_PASSWORD = "ednovax-demo";
-
 export const STAFF: StaffSeed[] = [
   { id: "stf_support", name: "Ednovax Support", email: "support@ednovax.com", role: "admin", title: "Support desk" },
   { id: "stf_blessed", name: "Blessed Oigbochie", email: "blessed@ednovax.com", role: "lead", title: "Tech lead" },

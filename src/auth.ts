@@ -60,7 +60,8 @@ export async function logIn(c: Context, email: string, password: string): Promis
   if (!row || !passwordMatches(password, row.passwordHash)) return undefined;
 
   const user: StaffUser = { id: row.id, name: row.name, email: row.email, role: row.role, title: row.title };
-  setCookie(c, COOKIE, sessionToken(user), { httpOnly: true, sameSite: "Lax", path: "/", maxAge: SESSION_HOURS * 3600 });
+  // Served over https (PUBLIC_URL), the cookie is only ever sent over https.
+  setCookie(c, COOKIE, sessionToken(user), { httpOnly: true, secure: config.publicUrl.startsWith("https://"), sameSite: "Lax", path: "/", maxAge: SESSION_HOURS * 3600 });
   return user;
 }
 

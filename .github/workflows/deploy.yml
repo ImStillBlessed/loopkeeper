@@ -1,0 +1,101 @@
+# Every push and pull request: typecheck, test against a real FalkorDB, build.
+# A push to main that passes is deployed to support.ednovax.com.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   VPS_HOST     the server's address
+#   VPS_USER     the user that owns /var/www/support-desk (the one that ran deploy/setup-server.sh)
+#   VPS_SSH_KEY  a private key whose public half is in that user's ~/.ssh/authorized_keys
+#   VPS_PORT     the SSH port (optional, defaults to 22)
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      falkordb:
+        image: falkordb/falkordb:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      FALKORDB_HOST: 127.0.0.1
+      FALKORDB_PORT: 6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://support.ednovax.com
+    env:
+      APP_DIR: /var/www/support-desk
+      SSH_TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+      SSH_PORT: ${{ secrets.VPS_PORT || '22' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Build the dashboard
+        run: npm run build
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      # The server's .env, its caches (the embedding model) and the database are never touched.
+      - name: Copy the code and the built dashboard
+        run: |
+          rsync -az --delete \
+            --exclude .git --exclude node_modules --exclude .env --exclude .cache --exclude READMES \
+            -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT" \
+            ./ "$SSH_TARGET:$APP_DIR/"
+
+      - name: Install and restart
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_TARGET" bash -s <<EOF
+          set -euo pipefail
+          cd "$APP_DIR"
+          npm install --omit=dev --no-audit --no-fund
+          if [ ! -f /etc/systemd/system/support-desk.service ]; then
+            echo "First deploy: the code is on the server. Run: bash $APP_DIR/deploy/setup-server.sh"
+            exit 0
+          fi
+          sudo -n systemctl restart support-desk
+          for _ in \$(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8795/api/auth/demo-accounts; then echo "The desk is up."; exit 0; fi
+            sleep 2
+          done
+          echo "The desk didn't come back up. On the server: journalctl -u support-desk -n 50"
+          exit 1
+          EOF

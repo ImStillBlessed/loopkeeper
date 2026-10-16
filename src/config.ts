@@ -42,6 +42,14 @@ export const config = {
     pollSeconds: Number(env("GITHUB_POLL_SECONDS", "60")),
   },
   port: Number(env("PORT", "8787")),
+  /** Where the API listens. On a server behind nginx, 127.0.0.1 keeps it off the public network. */
+  host: env("HOST", "0.0.0.0"),
+  demo: {
+    /** The staff accounts' password when they are first created. Set your own on a public server. */
+    password: env("DEMO_PASSWORD", "ednovax-demo"),
+    /** List the accounts (and the password) on the login screen. Turn off on a public server. */
+    showAccounts: env("SHOW_DEMO_ACCOUNTS", "true") === "true",
+  },
   /**
    * Where the desk is reachable from outside, e.g. https://desk.ednovax.com. Webhook URLs for GitHub
    * and WhatsApp are built from it. Unset, the address the browser used is shown instead.

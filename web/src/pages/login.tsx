@@ -93,7 +93,7 @@ export function LoginPage() {
             </Button>
           </form>
 
-          {demo && (
+          {demo && demo.accounts.length > 0 && (
             <div className="mt-10">
               <div className="flex items-center justify-between pb-3">
                 <span className="text-[14px] font-semibold">Try a demo account</span>

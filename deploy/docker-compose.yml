@@ -1,0 +1,18 @@
+# The desk's own FalkorDB on the server, reachable only from the server itself (127.0.0.1:6395),
+# with a password and its data kept in a named volume across restarts and upgrades.
+#   docker compose -p support-desk -f deploy/docker-compose.yml --env-file .env up -d
+name: support-desk
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FALKORDB_PORT:-6395}:6379"
+    environment:
+      REDIS_ARGS: "--requirepass ${FALKORDB_PASSWORD:?set FALKORDB_PASSWORD in .env}"
+    volumes:
+      - falkordb-data:/var/lib/falkordb/data
+
+volumes:
+  falkordb-data:

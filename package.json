@@ -40,6 +40,7 @@
     "tailwind-merge": "^3.7.0",
     "three": "^0.186.1",
     "three-spritetext": "^1.10.0",
+    "tsx": "^4.23.15",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
@@ -51,7 +52,6 @@
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.4"

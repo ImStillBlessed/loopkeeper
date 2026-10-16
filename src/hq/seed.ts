@@ -1,8 +1,9 @@
 import type { Graph } from "falkordb";
-import { DEMO_PASSWORD, SLA_POLICIES, STAFF } from "../../data/demo/staff.js";
+import { SLA_POLICIES, STAFF } from "../../data/demo/staff.js";
 import type { ClientSeed } from "../../data/synthetic/cast.js";
 import { CODE_FILES, DEMO_REPOS, FEATURES, PRODUCTS } from "../../data/synthetic/product.js";
 import { hashPassword } from "../auth.js";
+import { config } from "../config.js";
 import {
   H10_STAFF_SEED,
   H13_SLA_SEED,
@@ -72,7 +73,7 @@ export async function seedHq(hq: Graph, salt: string, clients: ClientSeed[]): Pr
     await run(hq, H4_IMPORTS_SEED, { imports: files.flatMap((f) => (f.imports ?? []).map((to) => ({ from: id(f.path), to: id(to) }))) });
   }
 
-  await run(hq, H10_STAFF_SEED, { staff: STAFF.map((s) => ({ ...s, passwordHash: hashPassword(DEMO_PASSWORD) })) });
+  await run(hq, H10_STAFF_SEED, { staff: STAFF.map((s) => ({ ...s, passwordHash: hashPassword(config.demo.password) })) });
   await run(hq, H13_SLA_SEED, { policies: SLA_POLICIES });
   for (const client of clients) await registerClient(hq, client);
   await run(hq, H22_MARK_SEED_VERSION, { version: DEMO_DATA_VERSION });

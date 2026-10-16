@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { existsSync } from "node:fs";
-import { DEMO_PASSWORD, STAFF } from "../../data/demo/staff.js";
+import { STAFF } from "../../data/demo/staff.js";
 import { currentUser, logIn, logOut, requireLogin, requireRole, type StaffUser } from "../auth.js";
 import { config } from "../config.js";
 import { githubConfigured } from "../github/api.js";
@@ -37,8 +37,10 @@ api.get("/auth/me", async (c) => {
   return user ? c.json(user) : c.json({ error: "Not logged in" }, 401);
 });
 
-/** The demo accounts, shown on the login screen so judges can sign in. */
-api.get("/auth/demo-accounts", (c) => c.json({ password: DEMO_PASSWORD, accounts: STAFF.map(({ name, email, role, title }) => ({ name, email, role, title })) }));
+/** The demo accounts, shown on the login screen so judges can sign in (unless turned off with SHOW_DEMO_ACCOUNTS=false). */
+api.get("/auth/demo-accounts", (c) =>
+  c.json(config.demo.showAccounts ? { password: config.demo.password, accounts: STAFF.map(({ name, email, role, title }) => ({ name, email, role, title })) } : { password: null, accounts: [] }),
+);
 
 api.route("/github/webhook", githubWebhook);
 api.route("/whatsapp/webhook", whatsappWebhook);
@@ -84,7 +86,7 @@ if (existsSync("web/dist")) {
 
 await loadSettings();
 await getWorld();
-serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
-  console.log(`Loopkeeper API on http://localhost:${port}`);
+serve({ fetch: app.fetch, port: config.port, hostname: config.host }, ({ port }) => {
+  console.log(`Loopkeeper API on http://${config.host === "0.0.0.0" ? "localhost" : config.host}:${port}`);
   if (!setting("anthropicApiKey")) console.warn("ℹ No Anthropic API key yet: add one in the dashboard under Settings → Connections");
 });

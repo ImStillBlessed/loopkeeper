@@ -1,0 +1,19 @@
+# systemd unit for the desk's API. setup-server.sh fills in the user and the node path.
+[Unit]
+Description=Ednovax Support Desk (Loopkeeper API)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=/var/www/support-desk
+Environment=NODE_ENV=production
+ExecStart=__NODE__ --import tsx src/server/index.ts
+Restart=always
+RestartSec=3
+# The local embedding model needs a little memory; keep the rest of the server safe if it misbehaves.
+MemoryMax=1500M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,13 @@
-import { pipeline } from "@huggingface/transformers";
+import { env, pipeline } from "@huggingface/transformers";
+import { join } from "node:path";
 import { config } from "../config.js";
 
 type Extractor = (texts: string[], options: { pooling: "mean"; normalize: boolean }) => Promise<{ tolist(): number[][] }>;
 
 let extractor: Promise<Extractor> | undefined;
+
+// Kept outside node_modules, so a fresh install (every deploy) doesn't download the model again.
+env.cacheDir = join(process.cwd(), ".cache", "models");
 
 /**
  * Sentence embeddings computed locally (all-MiniLM-L6-v2, 384 dimensions): free, no API key.
