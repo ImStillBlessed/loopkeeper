@@ -12,6 +12,7 @@ import { AskPage } from "@/pages/ask";
 import { ClientPage } from "@/pages/client";
 import { ClientsPage } from "@/pages/clients";
 import { ConversationsPage } from "@/pages/conversations";
+import { DatabasePage } from "@/pages/database";
 import { LoginPage } from "@/pages/login";
 import { OverviewPage } from "@/pages/overview";
 import { PatternsPage } from "@/pages/patterns";
@@ -82,6 +83,8 @@ function Pages() {
           <NetworkPage key={id} clientId={id} />
         </Suspense>
       );
+    case "database":
+      return <DatabasePage />;
     case "products":
       return <ProductsPage />;
     case "settings":

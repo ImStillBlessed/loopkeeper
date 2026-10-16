@@ -42,6 +42,7 @@ const VECTOR_INDEXES: Array<[label: string, property: string]> = [
   ["Issue", "embedding"],
   ["Message", "embedding"],
   ["Signal", "embedding"],
+  ["CodeFile", "embedding"],
 ];
 
 /**

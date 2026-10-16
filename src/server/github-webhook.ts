@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { recordCommit, recordIssueEvent, recordPullRequest, type PullRequestPayload } from "../github/activity.js";
+import { HG7_WEBHOOK_DELIVERY } from "../graph/hq-queries.js";
+import { run } from "../graph/queries.js";
 import { getWorld } from "../runtime/world.js";
 import { setting } from "../settings.js";
 
@@ -13,19 +15,24 @@ export const githubWebhook = new Hono();
 
 githubWebhook.post("/*", async (c) => {
   const raw = await c.req.text();
-  if (setting("githubWebhookSecret") && !validSignature(raw, c.req.header("x-hub-signature-256"))) {
-    return c.json({ error: "Bad signature" }, 401);
-  }
-
-  const event = c.req.header("x-github-event");
-  // GitHub's first delivery is a "ping" to check the URL works.
-  if (event === "ping") return c.json({ ok: true, pong: true });
-
+  const event = c.req.header("x-github-event") ?? "unknown";
   // Webhooks can be set to application/json or application/x-www-form-urlencoded (payload=<json>).
   const isForm = (c.req.header("content-type") ?? "").includes("x-www-form-urlencoded");
-  const payload = JSON.parse(isForm ? (new URLSearchParams(raw).get("payload") ?? "{}") : raw);
-  const router = (await getWorld()).githubRouter();
+  const payload = parse(isForm ? (new URLSearchParams(raw).get("payload") ?? "{}") : raw);
   const repo: string = payload.repository?.full_name;
+  const world = await getWorld();
+  const delivered = (error: string) => (repo ? run(world.hq, HG7_WEBHOOK_DELIVERY, { repo, ts: Date.now(), event, error }) : Promise.resolve([]));
+
+  if (setting("githubWebhookSecret") && !validSignature(raw, c.req.header("x-hub-signature-256"))) {
+    await delivered("the signature doesn't match the webhook secret in Settings");
+    return c.json({ error: "Bad signature" }, 401);
+  }
+  await delivered("");
+  if (repo) world.hub.emit({ kind: "activity", text: `GitHub webhook: ${event} from ${repo}`, ts: new Date(world.clock.peek()).toISOString(), source: "github" });
+
+  // GitHub's first delivery is a "ping" to check the URL works.
+  if (event === "ping") return c.json({ ok: true, pong: true });
+  const router = world.githubRouter();
 
   if (event === "pull_request") {
     await recordPullRequest(router, repo, payload.pull_request as PullRequestPayload);
@@ -46,6 +53,15 @@ githubWebhook.post("/*", async (c) => {
   }
   return c.json({ ok: true });
 });
+
+/** A webhook payload, or {} if it isn't JSON. */
+function parse(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
 
 function validSignature(body: string, header: string | undefined): boolean {
   if (!header) return false;

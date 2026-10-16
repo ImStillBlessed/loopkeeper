@@ -1,6 +1,6 @@
 import type { Graph } from "falkordb";
 import { config } from "../config.js";
-import { getFalkorDB } from "../graph/client.js";
+import { selectGraph } from "../graph/client.js";
 import { HB1_SAVE, HB2_ROUTE, HB3_IGNORE, HB4_FEED, HB5_LAST_ROUTED_BY, HB6_RESET, HB7_PENDING_COUNT, HB8_FIND_CONTACT } from "../graph/hub-queries.js";
 import { run } from "../graph/queries.js";
 import { personId, stableId } from "../ingest/ids.js";
@@ -46,7 +46,7 @@ export class SupportHub {
   ) {}
 
   static async open(services: HubServices): Promise<SupportHub> {
-    const graph = (await getFalkorDB()).selectGraph(HUB_GRAPH);
+    const graph = await selectGraph(HUB_GRAPH);
     await graph.query("CREATE INDEX FOR (m:HubMessage) ON (m.id)").catch(() => undefined);
     return new SupportHub(graph, services);
   }

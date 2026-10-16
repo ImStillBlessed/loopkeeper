@@ -46,6 +46,13 @@ export async function ghOptional<T>(path: string): Promise<T | undefined> {
   }
 }
 
+/** A file's source on the repository's default branch, or undefined (no token, no access, no such file). */
+export async function readSource(repo: string, path: string): Promise<string | undefined> {
+  if (!githubConfigured()) return undefined;
+  const file = await ghOptional<{ content?: string }>(`/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`);
+  return file?.content ? Buffer.from(file.content, "base64").toString("utf8") : undefined;
+}
+
 /** Reads a text file from a repository, or undefined if it doesn't exist. */
 export async function readRepoFile(repo: string, path: string, ref: string): Promise<string | undefined> {
   const file = await ghOptional<{ content?: string; encoding?: string }>(`/repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`);

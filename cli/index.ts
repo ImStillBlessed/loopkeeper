@@ -1,11 +1,10 @@
 /**
- * Loopkeeper chat CLI: write into clients' (simulated) WhatsApp groups and control the live chat.
+ * Loopkeeper chat CLI: reply in clients' WhatsApp groups and run the demo school.
  *
  *   npm run chat
- *   npm run chat -- --client royal_academy --email ngozi@ednovax.demo --password ednovax-demo
+ *   npm run chat -- --client henson --email blessed@ednovax.com --password ednovax-demo
  *
- * Logs in as the support lead by default (a demo account). Type "help" for commands,
- * or just "chidi: the timer is not showing" to speak as someone in the current client's group.
+ * Logs in as Ednovax Support by default. Type "help" for commands; anything else is sent as your reply.
  */
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
@@ -17,7 +16,7 @@ const { values } = parseArgs({
   options: {
     url: { type: "string", default: process.env.LOOPKEEPER_URL ?? "http://127.0.0.1:8787" },
     client: { type: "string" },
-    email: { type: "string", default: process.env.LOOPKEEPER_EMAIL ?? "lead@ednovax.demo" },
+    email: { type: "string", default: process.env.LOOPKEEPER_EMAIL ?? "support@ednovax.com" },
     password: { type: "string", default: process.env.LOOPKEEPER_PASSWORD ?? "ednovax-demo" },
   },
 });
@@ -71,8 +70,7 @@ async function handle(input: string): Promise<void> {
   const command = COMMANDS[name.toLowerCase()];
   try {
     if (command) await command.run(rest.join(" "), session);
-    else if (/^[^:]{1,40}:\s*\S/.test(text)) await COMMANDS.say.run(text, session);
-    else print(color.coral(`  Unknown command "${name}". Type "help".`));
+    else await COMMANDS.say.run(text, session);
   } catch (error) {
     print(color.coral(`  ${(error as Error).message}`));
   }
@@ -87,7 +85,7 @@ async function start(): Promise<void> {
 
   console.log(`\n  ${color.lilac("◯")}${color.sunflower("•")} ${color.bold("Ednovax support desk")}  ${color.faint(`${user.name} (${user.role}) at ${values.url}`)}`);
   if (!status.hasApiKey) console.log(color.sunflower("  No Anthropic API key yet: messages arrive but won't be understood. Add one in the dashboard under Settings."));
-  console.log(color.faint(`  Working on ${session.client}. Type "help" for commands, or speak as someone:  chidi: the timer is not showing\n`));
+  console.log(color.faint(`  Working on ${session.client}. Type "help" for commands; anything else is your reply in the group.\n`));
 
   stopFollowing = api.follow(
     (event) => {

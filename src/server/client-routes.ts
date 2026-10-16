@@ -1,6 +1,4 @@
 import { Hono } from "hono";
-import { castOf } from "../../data/synthetic/cast.js";
-import { PREPARED_KINDS, type PreparedKind } from "../../data/synthetic/prepared.js";
 import { askInConversation, deleteConversation, getConversation, listConversations, migrateLegacyQuestions } from "../agent/conversations.js";
 import { canSeeClient, requireRole, type StaffUser } from "../auth.js";
 import { openGithubIssue } from "../github/issues.js";
@@ -29,6 +27,7 @@ import {
   Q4_DUE_FOLLOWUPS,
   Q7_PRIORITY,
   Q19_TEAM_NOTES,
+  Q21_LIKELY_CODE,
   Q8_HISTORY,
   run,
   W19_TEAM_NOTE,
@@ -45,7 +44,6 @@ import { personId, stableId } from "../ingest/ids.js";
 import { claudeLlm } from "../llm/llm.js";
 import { STATUS_WORDS } from "../pipeline/status.js";
 import type { ClientRuntime } from "../runtime/client-runtime.js";
-import { resolveSender, whatsappLabelFor } from "../runtime/simulator.js";
 import { getWorld } from "../runtime/world.js";
 
 type Env = { Variables: { user: StaffUser; runtime: ClientRuntime } };
@@ -111,7 +109,7 @@ clientRoutes.post("/groups/:groupId/messages", async (c) => {
   const { sender, text, hasMedia } = await c.req.json<{ sender: string; text: string; hasMedia?: boolean }>();
   if (!sender || (!text && !hasMedia)) return c.json({ error: "A message needs a sender and text" }, 400);
   const runtime = c.get("runtime");
-  await runtime.receive(whatsappLabelFor(resolveSender(sender, runtime.id)), text ?? "", { groupId: c.req.param("groupId"), hasMedia });
+  await runtime.receive(sender, text ?? "", { groupId: c.req.param("groupId"), hasMedia });
   return c.json({ ok: true });
 });
 
@@ -121,27 +119,23 @@ clientRoutes.post("/groups/:groupId/import", async (c) => {
   return c.json({ ok: true, messages: count });
 });
 
-/** The client's contacts, plus who the simulator can speak as in this client's group. */
-clientRoutes.get("/people", async (c) =>
-  c.json({
-    people: await run(graphOf(c), C12_PEOPLE),
-    cast: castOf(c.get("runtime").id).map((m) => ({ key: m.key, name: m.name, role: m.role })),
-  }),
-);
+/** The client's contacts. */
+clientRoutes.get("/people", async (c) => c.json({ people: await run(graphOf(c), C12_PEOPLE) }));
 
-/** Write into this client's group: a prepared kind (issue, greeting, question, promise, fixed) or custom text. */
-clientRoutes.post("/send", async (c) => {
-  const body = await c.req.json<{ sender?: string; text?: string; kind?: PreparedKind }>();
-  const world = await getWorld();
-  const clientId = c.get("runtime").id;
-  if (body.kind) {
-    if (!PREPARED_KINDS.includes(body.kind)) return c.json({ error: `Kind must be one of ${PREPARED_KINDS.join(", ")}` }, 400);
-    return c.json(world.simulator.prepared(clientId, body.kind, body.sender));
-  }
-  if (!body.sender || !body.text) return c.json({ error: "Send needs a sender and text, or a kind" }, 400);
-  const sender = resolveSender(body.sender, clientId);
-  world.say(clientId, sender, body.text);
-  return c.json({ sender, text: body.text });
+// ─── The demo school: teachers played by the model ──────────────────────────
+
+/** Who at the school is waiting on what (only for a client whose people are simulated). */
+clientRoutes.get("/teachers", async (c) => {
+  const school = (await getWorld()).school(c.get("runtime").id);
+  return school ? c.json(school.view()) : c.json({ error: "This client's people are real, not simulated" }, 404);
+});
+
+/** A teacher raises their next problem now, instead of when its turn comes. */
+clientRoutes.post("/teachers/next", async (c) => {
+  const school = (await getWorld()).school(c.get("runtime").id);
+  if (!school) return c.json({ error: "This client's people are real, not simulated" }, 404);
+  const teacher = school.raiseNext();
+  return teacher ? c.json({ teacher }) : c.json({ error: "The teachers have raised every problem they had" }, 409);
 });
 
 // ─── Tickets ─────────────────────────────────────────────────────────────────
@@ -173,6 +167,7 @@ clientRoutes.get("/issues/:id", async (c) => {
     history: await run(graph, Q8_HISTORY, { issueId }),
     impact: await run(graph, Q3_IMPACT, { issueId }),
     dependentCode: await run(graph, Q3B_DEPENDENT_CODE, { issueId }),
+    likelyCode: await run(graph, Q21_LIKELY_CODE, { issueId }),
   });
 });
 
@@ -353,7 +348,7 @@ clientRoutes.post("/reply", async (c) => {
     people: [{ id: personId(user.name, config.idHashSalt), name: user.name, role: user.role === "developer" ? "developer" : "support" }],
   });
   const world = await getWorld();
-  world.say(runtime.id, user.name, text.trim());
+  await world.say(runtime.id, user.name, text.trim());
   // The support number is the bridge: when the client has a real WhatsApp group, the reply goes there too.
   const [wa] = await run<{ id: string }>(world.hq, HW5_GROUP_OF_CLIENT, { clientId: runtime.id });
   if (wa && cloudApiConfigured()) await sendGroupText(wa.id, text.trim());

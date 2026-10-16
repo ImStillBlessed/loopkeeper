@@ -1,9 +1,10 @@
-import { Check, Copy, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Empty, ErrorNote, Loading, Page, PageHeader, Panel, Tabs } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { CopyField } from "@/components/ui/copy-field";
 import { Field, Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -84,6 +85,7 @@ function TeamSection() {
                 <tr key={member.id} className="border-b border-line-soft last:border-b-0">
                   <td className="px-5 py-3">
                     <div className="font-medium">{member.name}</div>
+                    {member.title && <div className="text-[12.5px] text-muted">{member.title}</div>}
                     <div className="truncate text-[12.5px] text-muted lg:hidden">{member.email}</div>
                   </td>
                   <td className="hidden px-5 py-3 text-[13px] text-muted lg:table-cell">{member.email}</td>
@@ -472,7 +474,7 @@ function ConnectionsSection() {
   const user = useUser();
   const admin = can(user.role, "manage_keys");
   const [settings, setSettings] = useState<Settings>();
-  const [status, setStatus] = useState<{ hasApiKey: boolean; githubConfigured: boolean }>();
+  const [status, setStatus] = useState<{ hasApiKey: boolean; githubConfigured: boolean; publicUrl: string }>();
   const [draft, setDraft] = useState<Partial<Record<SettingKey, string>>>({});
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState(false);
@@ -516,6 +518,14 @@ function ConnectionsSection() {
 
       <Panel title="Keys">
         <SecretRows secrets={SECRETS} settings={settings} admin={admin} draft={draft} setDraft={setDraft} />
+        <div className="border-t border-line-soft px-5 py-4">
+          <Field
+            label="GitHub webhook URL"
+            hint="In each repository: Settings → Webhooks → Add webhook. Content type application/json, the secret above, and the events Pull requests, Pushes and Issues."
+          >
+            <CopyField value={`${status?.publicUrl ?? window.location.origin}/api/github/webhook`} />
+          </Field>
+        </div>
       </Panel>
 
       <Panel title="WhatsApp">
@@ -533,7 +543,7 @@ function ConnectionsSection() {
             />
           </Field>
           <Field label="Webhook URL" hint="Paste this into Meta's webhook setup, with the verify token above.">
-            <CopyField value={`${window.location.origin}/api/whatsapp/webhook`} />
+            <CopyField value={`${status?.publicUrl ?? window.location.origin}/api/whatsapp/webhook`} />
           </Field>
         </div>
       </Panel>
@@ -617,28 +627,6 @@ function SecretRows({
 }
 
 /** A read-only value with a copy button. */
-function CopyField({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="flex gap-2">
-      <Input value={value} readOnly className="min-w-0 font-mono text-[12.5px]" onFocus={(e) => e.currentTarget.select()} />
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="h-10 w-10 shrink-0"
-        aria-label="Copy"
-        onClick={() => {
-          void navigator.clipboard?.writeText(value);
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1500);
-        }}
-      >
-        {copied ? <Check /> : <Copy />}
-      </Button>
-    </div>
-  );
-}
 
 /** Groups the support number is in: link each to a client, or make one the central hub. */
 function WhatsAppGroups({ admin }: { admin: boolean }) {
@@ -764,62 +752,57 @@ function StatusCell({ ok, label, okText, offText, className }: { ok: boolean; la
 
 // ─── Demo ────────────────────────────────────────────────────────────────────
 
-const DEMO_CLIENTS = [
-  ["Royal Academy", "Premium school in Benin City. A scores problem was escalated two days ago."],
-  ["Bright Future College", "Standard school in Lagos. Mostly healthy."],
-  ["Unity Model School", "Standard school in Abuja. Several open problems and a missed promise: it needs attention."],
-  ["Apex Tutorial Centre", "Premium lecture centre in Ibadan. QR attendance broke this morning."],
+const DEMO_SCHOOL = [
+  "They raise their problems one at a time, and chase if nobody answers.",
+  "They answer your questions with what they know: the class, the error, the device.",
+  "When you close a ticket or a fix is merged, they try it and say whether it works.",
 ];
 
 function DemoSection() {
-  const { touch } = useLive();
-  const [result, setResult] = useState<string>();
   const [error, setError] = useState<string>();
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-      <Panel title="The demo clients">
-        <ul className="divide-y divide-line-soft">
-          {DEMO_CLIENTS.map(([name, text]) => (
-            <li key={name} className="px-5 py-3">
-              <div className="font-medium">{name}</div>
-              <div className="text-[14px] text-muted">{text}</div>
-            </li>
-          ))}
-        </ul>
-        <p className="border-t border-line-soft px-5 py-3 text-[13.5px] text-muted">
-          Each client has four weeks of history in its own graph. Three schools are reporting the same report-card problem right now.
-        </p>
+      <Panel title="The demo school">
+        <div className="px-5 pb-5">
+          <p className="text-[14px] text-muted">
+            Henson, in Benin City. Its staff in the WhatsApp group are played by AI. Everyone at Ednovax is a real person: you reply, open GitHub issues and close tickets.
+          </p>
+          <ul className="mt-3 flex list-disc flex-col gap-1.5 pl-5 text-[14px]">
+            {DEMO_SCHOOL.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
       </Panel>
       <div className="flex flex-col gap-4">
         <Panel title="Start over">
           <div className="flex flex-col items-start gap-4 p-5">
             <p className="text-[14px] text-muted">
-              Puts every demo client back to its four weeks of history. Anything learned since (live chat, imports, replies) is forgotten. Staff, products and connections stay.
+              Clears every chat, ticket and promise, the hub and Ask history. The teachers start again from their first problem. Clients, staff, products and connections stay.
             </p>
             <Confirm
-              title="Restore the demo history?"
-              description="Everything the demo clients have said since the history was loaded is forgotten, and the history is written again."
-              action="Restore history"
+              title="Start over?"
+              description="Every conversation, ticket and promise is deleted. This can't be undone."
+              action="Start over"
               onConfirm={async () => {
                 setError(undefined);
                 try {
-                  const { tickets } = await api.restoreDemo();
-                  setResult(`Restored ${tickets} tickets across the demo clients.`);
-                  touch();
+                  await api.startOver();
+                  // The page still holds the old live feed in memory; load it afresh.
+                  window.location.reload();
                 } catch (e) {
                   setError((e as Error).message);
                 }
               }}
             >
-              <Button variant="navy">Restore demo history</Button>
+              <Button variant="navy">Start over</Button>
             </Confirm>
-            {result && <div className="w-full border-l-2 border-green bg-green-soft px-4 py-3 text-[14px] text-green">{result}</div>}
             {error && <ErrorNote message={error} />}
           </div>
         </Panel>
         <p className="text-[13.5px] text-muted">
-          Live demo controls are in the top bar: <span className="font-medium text-ink">Go live</span> starts the simulated WhatsApp groups and{" "}
+          Demo controls are in the top bar: <span className="font-medium text-ink">Go live</span> brings the teachers to life and{" "}
           <span className="font-medium text-ink">Skip ahead</span> moves the chat clock so promises and SLAs fall due.
         </p>
       </div>

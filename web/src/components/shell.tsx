@@ -87,7 +87,7 @@ function UserBlock() {
       <Avatar name={user.name} staff />
       <div className="min-w-0 flex-1 leading-tight">
         <div className="truncate text-[14px] font-semibold">{user.name}</div>
-        <div className="text-[12.5px] text-muted">{ROLE[user.role]}</div>
+        <div className="text-[12.5px] text-muted">{user.title || ROLE[user.role]}</div>
       </div>
       <button onClick={logOut} className="grid size-8 place-items-center rounded-lg text-muted transition-colors hover:bg-card hover:text-red" aria-label="Log out" title="Log out">
         <LogOut className="size-4" />
@@ -113,7 +113,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
             <span className={cn("size-2 rounded-full", live.running ? "animate-[pulse-dot_1.6s_ease-in-out_infinite] bg-white" : "bg-faint")} />
           </span>
           <div className="min-w-0 leading-tight">
-            <div className={cn("hidden text-[11.5px] font-semibold sm:block", live.running ? "text-green" : "text-muted")}>{live.running ? "WhatsApp groups live" : "Chat time"}</div>
+            <div className={cn("hidden text-[11.5px] font-semibold sm:block", live.running ? "text-green" : "text-muted")}>{live.running ? "Teachers are live" : "Chat time"}</div>
             <div className="truncate text-[13.5px] font-semibold tabular">
               <span className="hidden sm:inline">{formatDateTime(live.clock)}</span>
               <span className="sm:hidden">{formatTime(live.clock)}</span>
@@ -127,7 +127,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
               <Pause /> <span className="hidden sm:inline">Pause</span>
             </Button>
           ) : (
-            <Button size="sm" onClick={live.goLive} title="The simulated WhatsApp groups start chatting">
+            <Button size="sm" onClick={live.goLive} title="The demo school's teachers (played by AI) start raising problems">
               <Play /> <span className="hidden sm:inline">Go live</span>
             </Button>
           )}

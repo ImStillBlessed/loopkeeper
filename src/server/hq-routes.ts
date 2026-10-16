@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { ScenarioId } from "../../data/synthetic/scenarios.js";
 import { requireRole, visibleClientIds, type StaffUser } from "../auth.js";
 import { githubConfigured, normaliseRepo } from "../github/api.js";
+import { DEMO_REPOS } from "../../data/synthetic/product.js";
+import { repoHealth, type RepoHealth } from "../github/health.js";
 import { indexRepository } from "../github/indexer.js";
-import { H12_STAFF, H14_SLA_POLICIES, H20_ALL_FEATURES, HD3_ALL_DEPLOYMENTS, HW4_GROUPS, H9_FEATURE_DETAILS, HG2_REPOS, HG4_REMOVE_REPO, HG5_PRODUCT_OF_REPO, X7_PATTERNS } from "../graph/hq-queries.js";
+import { H12_STAFF, H14_SLA_POLICIES, H20_ALL_FEATURES, HD3_ALL_DEPLOYMENTS, HW4_GROUPS, H9_FEATURE_DETAILS, HG2_REPOS, HG5_PRODUCT_OF_REPO, X7_PATTERNS } from "../graph/hq-queries.js";
 import { run } from "../graph/queries.js";
 import type { HubEvent } from "../pipeline/types.js";
 import { continueConversation, deleteConversation, deskGraph, getConversation, listConversations, migrateLegacyQuestions, plainAnswer } from "../agent/conversations.js";
@@ -24,7 +25,7 @@ const HOUR = 60 * 60 * 1000;
 /** HQ-level routes: the event stream, live demo controls, clients, products, staff, patterns. */
 export const hqRoutes = new Hono<Env>();
 
-// ─── Live events and the simulated WhatsApp groups ───────────────────────────
+// ─── Live events and the demo school ─────────────────────────────────────────
 
 /**
  * The app-wide event stream (Server-Sent Events), limited to the clients this person can see.
@@ -49,27 +50,20 @@ hqRoutes.get("/events", async (c) => {
 
 hqRoutes.get("/live", async (c) => {
   const world = await getWorld();
-  return c.json({ running: world.simulator.running, clock: world.clock.peek() });
+  return c.json({ running: world.live, clock: world.clock.peek() });
 });
 
+/** Go live: the demo school's teachers (played by the model) start raising problems and reacting. */
 hqRoutes.post("/live/start", async (c) => {
-  const { paceMs } = await c.req.json<{ paceMs?: number }>().catch(() => ({}) as { paceMs?: number });
   const world = await getWorld();
-  world.goLive(paceMs);
-  return c.json({ running: world.simulator.running, clock: world.clock.peek() });
+  world.goLive();
+  return c.json({ running: world.live, clock: world.clock.peek() });
 });
 
 hqRoutes.post("/live/stop", async (c) => {
   const world = await getWorld();
   world.pauseLive();
   return c.json({ running: false, clock: world.clock.peek() });
-});
-
-hqRoutes.post("/live/story", async (c) => {
-  const { scenario } = await c.req.json<{ scenario: ScenarioId }>();
-  // Plays in the background, into whichever clients the story involves.
-  void (await getWorld()).simulator.playStory(scenario);
-  return c.json({ ok: true, scenario });
 });
 
 /** Fast-forward the chat clock, e.g. two days, to watch promises and SLAs fall due. */
@@ -79,7 +73,7 @@ hqRoutes.post("/clock/advance", async (c) => {
   const world = await getWorld();
   world.clock.advance(hours * HOUR);
   world.emitLive();
-  return c.json({ running: world.simulator.running, clock: world.clock.peek() });
+  return c.json({ running: world.live, clock: world.clock.peek() });
 });
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
@@ -120,22 +114,40 @@ hqRoutes.get("/repos", async (c) => {
   return c.json({ githubConfigured: githubConfigured(), lastError: world.lastGithubError ?? null, repos: await run(world.hq, HG2_REPOS) });
 });
 
-/** Connect a repository to a product: reads its files, features, owners and imports into HQ, then into each client using it. */
+/** Every repository a product or a client uses: access, issues, webhook and code, each with what to do. Cached for a minute. */
+let healthCache: { at: number; result: RepoHealth[] } | undefined;
+hqRoutes.get("/repos/health", async (c) => {
+  if (!healthCache || c.req.query("refresh") || Date.now() - healthCache.at > 60_000) {
+    healthCache = { at: Date.now(), result: await repoHealth((await getWorld()).hq) };
+  }
+  return c.json(healthCache.result);
+});
+
+/**
+ * Connect a repository to a product: reads its files, features, owners, imports and source into HQ,
+ * then into each client using it. The product's demo stand-in code goes, now that real code is there.
+ */
 hqRoutes.post("/repos", requireRole("admin", "lead"), async (c) => {
   const { repo, product } = await c.req.json<{ repo: string; product: string }>();
   const world = await getWorld();
-  const result = await indexRepository(world.hq, repo, product);
+  const say = (text: string) => world.hub.emit({ kind: "activity", text: `GitHub: ${text}`, ts: new Date(world.clock.peek()).toISOString(), source: "github" });
+  const result = await indexRepository(world.hq, repo, product, say);
+  const standIn = DEMO_REPOS[product];
+  if (standIn && standIn !== result.repo) await world.forgetRepo(standIn);
   await world.refreshProduct(product);
-  world.hub.emit({ kind: "activity", text: `Connected ${result.repo} to ${product}: ${result.files} files, ${result.features} features, ${result.owners} code owners`, ts: new Date(world.clock.peek()).toISOString(), source: "github" });
-  return c.json(result);
+  healthCache = undefined;
+  const health = (await repoHealth(world.hq)).find((h) => h.repo.toLowerCase() === result.repo.toLowerCase());
+  say(`Connected ${result.repo} to ${product}: ${result.files} files (${result.read} read), ${result.features} features, ${result.owners} code owners`);
+  return c.json({ ...result, health });
 });
 
 hqRoutes.delete("/repos/:owner/:name", requireRole("admin", "lead"), async (c) => {
   const world = await getWorld();
   const id = normaliseRepo(`${c.req.param("owner")}/${c.req.param("name")}`);
   const [owner] = await run<{ product: string }>(world.hq, HG5_PRODUCT_OF_REPO, { id });
-  await run(world.hq, HG4_REMOVE_REPO, { id });
+  await world.forgetRepo(id);
   if (owner) await world.refreshProduct(owner.product);
+  healthCache = undefined;
   return c.json({ ok: true });
 });
 
@@ -327,10 +339,10 @@ hqRoutes.delete("/ask/conversations/hq/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Put the demo clients back to their four weeks of history (for a fresh demo run). */
-hqRoutes.post("/demo/restore", requireRole("admin", "lead"), async (c) => {
-  const tickets = await (await getWorld()).restoreDemoHistory();
-  return c.json({ ok: true, tickets });
+/** A fresh demo run: chats, tickets, the hub and Ask history are cleared, and the teachers start again. */
+hqRoutes.post("/demo/start-over", requireRole("admin", "lead"), async (c) => {
+  await (await getWorld()).startOver();
+  return c.json({ ok: true });
 });
 
 // ─── The central support hub ─────────────────────────────────────────────────
@@ -343,17 +355,12 @@ hqRoutes.get("/hub", hubStaff, async (c) => {
   return c.json({ entries: await hub.feed(), pending: await hub.pendingCount() });
 });
 
-/** A message in the hub (from the dashboard's simulator; real ones arrive from WhatsApp). */
+/** A message in the hub, typed on the dashboard (real ones arrive from WhatsApp). */
 hqRoutes.post("/hub/send", hubStaff, async (c) => {
   const { sender, text } = await c.req.json<{ sender?: string; text?: string }>();
   if (!text?.trim()) return c.json({ error: "Write a message first" }, 400);
   const world = await getWorld();
   void world.sayInHub(sender?.trim() || c.get("user").name, text.trim());
-  return c.json({ ok: true });
-});
-
-hqRoutes.post("/hub/story", hubStaff, async (c) => {
-  void (await getWorld()).playHubStory();
   return c.json({ ok: true });
 });
 

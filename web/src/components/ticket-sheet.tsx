@@ -371,9 +371,38 @@ function Timeline({ detail }: { detail: TicketDetail }) {
 function CodeSection({ detail }: { detail: TicketDetail }) {
   const code = detail.code;
   const prs = detail.github?.pullRequests ?? [];
-  if (!code && prs.length === 0) return null;
+  const likely = detail.likelyCode ?? [];
+  if (!code && prs.length === 0 && likely.length === 0) return null;
   return (
     <Section title="In the code" collapsible>
+      {likely.length > 0 && (
+        <div className="mb-4">
+          <div className="label !text-[10px]">Where it most likely is</div>
+          <ul className="mt-2 flex flex-col gap-3">
+            {likely.map((l) => (
+              <li key={l.path} className="rounded-xl border border-line-soft bg-paper px-3.5 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a href={`https://github.com/${l.repo}/blob/HEAD/${l.path}`} target="_blank" rel="noreferrer" className="min-w-0 truncate font-mono text-[12.5px] font-semibold text-primary hover:underline">
+                    {l.path}
+                  </a>
+                  <Badge tone={l.confidence >= 0.7 ? "green" : "amber"}>{Math.round(l.confidence * 100)}% sure</Badge>
+                  {l.readSource && <Badge tone="violet">Read the source</Badge>}
+                </div>
+                {l.functions.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {l.functions.map((f) => (
+                      <code key={f} className="rounded-md bg-card px-1.5 py-0.5 font-mono text-[12px] text-ink">
+                        {f}
+                      </code>
+                    ))}
+                  </div>
+                )}
+                {l.why && <p className="mt-1.5 text-[13.5px] text-ink-2">{l.why}</p>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {code && (
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -381,7 +410,7 @@ function CodeSection({ detail }: { detail: TicketDetail }) {
             <div className="mt-1">{code.codeOwners.join(", ") || "Unknown"}</div>
           </div>
           <div>
-            <div className="label !text-[10px]">Files</div>
+            <div className="label !text-[10px]">Files in this area</div>
             <ul className="mt-1 font-mono text-[12px] text-ink-2">
               {code.files.slice(0, 6).map((f) => (
                 <li key={f} className="truncate">

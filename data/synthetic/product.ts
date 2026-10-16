@@ -19,7 +19,7 @@ export interface Feature {
 export interface CodeFile {
   path: string;
   feature: string;
-  /** Cast key of the developer listed in CODEOWNERS. */
+  /** Staff id of the developer listed in CODEOWNERS. */
   owner: string;
   imports?: string[];
 }
@@ -66,34 +66,34 @@ export const FEATURES: Feature[] = [
 
 export const CODE_FILES: Record<string, CodeFile[]> = {
   sms_v1: [
-    { path: "app/login/page.tsx", feature: "login", owner: "kemi", imports: ["lib/auth/session.ts"] },
-    { path: "lib/auth/session.ts", feature: "login", owner: "kemi", imports: ["lib/db.ts"] },
-    { path: "components/cbt/Timer.tsx", feature: "cbt_timer", owner: "kemi", imports: ["lib/cbt/clock.ts"] },
-    { path: "lib/cbt/clock.ts", feature: "cbt_timer", owner: "kemi" },
-    { path: "app/cbt/[testId]/page.tsx", feature: "cbt_tests", owner: "kemi", imports: ["components/cbt/Timer.tsx", "lib/cbt/tests.ts"] },
-    { path: "lib/cbt/tests.ts", feature: "cbt_tests", owner: "kemi", imports: ["lib/db.ts"] },
-    { path: "lib/questions/import.ts", feature: "question_bank", owner: "kemi", imports: ["lib/cbt/tests.ts"] },
-    { path: "app/scores/page.tsx", feature: "score_submission", owner: "tunde", imports: ["lib/scores/submit.ts"] },
-    { path: "lib/scores/submit.ts", feature: "score_submission", owner: "tunde", imports: ["lib/db.ts", "lib/scores/validate.ts"] },
-    { path: "lib/scores/validate.ts", feature: "score_submission", owner: "tunde" },
-    { path: "app/results/page.tsx", feature: "results_export", owner: "tunde", imports: ["lib/results/averages.ts"] },
-    { path: "lib/results/averages.ts", feature: "results_export", owner: "tunde", imports: ["lib/scores/submit.ts"] },
-    { path: "lib/results/export.ts", feature: "results_export", owner: "tunde", imports: ["lib/results/averages.ts"] },
-    { path: "app/students/page.tsx", feature: "student_management", owner: "tunde", imports: ["lib/db.ts"] },
-    { path: "app/subjects/page.tsx", feature: "subjects", owner: "tunde", imports: ["lib/db.ts"] },
-    { path: "app/profile/page.tsx", feature: "profile", owner: "kemi", imports: ["lib/uploads.ts"] },
-    { path: "lib/uploads.ts", feature: "profile", owner: "kemi" },
-    { path: "lib/notify/sms.ts", feature: "notifications", owner: "tunde" },
-    { path: "lib/db.ts", feature: "student_management", owner: "tunde" },
+    { path: "app/login/page.tsx", feature: "login", owner: "stf_maro", imports: ["lib/auth/session.ts"] },
+    { path: "lib/auth/session.ts", feature: "login", owner: "stf_maro", imports: ["lib/db.ts"] },
+    { path: "components/cbt/Timer.tsx", feature: "cbt_timer", owner: "stf_maro", imports: ["lib/cbt/clock.ts"] },
+    { path: "lib/cbt/clock.ts", feature: "cbt_timer", owner: "stf_maro" },
+    { path: "app/cbt/[testId]/page.tsx", feature: "cbt_tests", owner: "stf_maro", imports: ["components/cbt/Timer.tsx", "lib/cbt/tests.ts"] },
+    { path: "lib/cbt/tests.ts", feature: "cbt_tests", owner: "stf_maro", imports: ["lib/db.ts"] },
+    { path: "lib/questions/import.ts", feature: "question_bank", owner: "stf_maro", imports: ["lib/cbt/tests.ts"] },
+    { path: "app/scores/page.tsx", feature: "score_submission", owner: "stf_blessed", imports: ["lib/scores/submit.ts"] },
+    { path: "lib/scores/submit.ts", feature: "score_submission", owner: "stf_blessed", imports: ["lib/db.ts", "lib/scores/validate.ts"] },
+    { path: "lib/scores/validate.ts", feature: "score_submission", owner: "stf_blessed" },
+    { path: "app/results/page.tsx", feature: "results_export", owner: "stf_blessed", imports: ["lib/results/averages.ts"] },
+    { path: "lib/results/averages.ts", feature: "results_export", owner: "stf_blessed", imports: ["lib/scores/submit.ts"] },
+    { path: "lib/results/export.ts", feature: "results_export", owner: "stf_blessed", imports: ["lib/results/averages.ts"] },
+    { path: "app/students/page.tsx", feature: "student_management", owner: "stf_blessed", imports: ["lib/db.ts"] },
+    { path: "app/subjects/page.tsx", feature: "subjects", owner: "stf_blessed", imports: ["lib/db.ts"] },
+    { path: "app/profile/page.tsx", feature: "profile", owner: "stf_maro", imports: ["lib/uploads.ts"] },
+    { path: "lib/uploads.ts", feature: "profile", owner: "stf_maro" },
+    { path: "lib/notify/sms.ts", feature: "notifications", owner: "stf_blessed" },
+    { path: "lib/db.ts", feature: "student_management", owner: "stf_blessed" },
   ],
   ednovax: [
-    { path: "app/attendance/scan.tsx", feature: "centre_attendance", owner: "kemi", imports: ["lib/attendance/qr.ts"] },
-    { path: "lib/attendance/qr.ts", feature: "centre_attendance", owner: "kemi" },
-    { path: "app/timetable/page.tsx", feature: "timetable", owner: "kemi", imports: ["lib/timetable.ts"] },
-    { path: "lib/timetable.ts", feature: "timetable", owner: "kemi" },
-    { path: "lib/payments/receipts.ts", feature: "centre_payments", owner: "tunde" },
-    { path: "app/practice/[testId].tsx", feature: "practice_tests", owner: "kemi", imports: ["lib/practice/timer.ts"] },
-    { path: "lib/practice/timer.ts", feature: "practice_tests", owner: "kemi" },
-    { path: "lib/progress/report.ts", feature: "progress_reports", owner: "tunde" },
+    { path: "app/attendance/scan.tsx", feature: "centre_attendance", owner: "stf_maro", imports: ["lib/attendance/qr.ts"] },
+    { path: "lib/attendance/qr.ts", feature: "centre_attendance", owner: "stf_maro" },
+    { path: "app/timetable/page.tsx", feature: "timetable", owner: "stf_maro", imports: ["lib/timetable.ts"] },
+    { path: "lib/timetable.ts", feature: "timetable", owner: "stf_maro" },
+    { path: "lib/payments/receipts.ts", feature: "centre_payments", owner: "stf_blessed" },
+    { path: "app/practice/[testId].tsx", feature: "practice_tests", owner: "stf_maro", imports: ["lib/practice/timer.ts"] },
+    { path: "lib/practice/timer.ts", feature: "practice_tests", owner: "stf_maro" },
+    { path: "lib/progress/report.ts", feature: "progress_reports", owner: "stf_blessed" },
   ],
 };

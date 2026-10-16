@@ -61,6 +61,14 @@ export const H7_PRODUCT_FILES = query("H7", "Code files and owners of the given 
   RETURN f.key AS feature, c.id AS id, c.path AS path, coalesce(c.repo, '') AS repo,
          coalesce(o.id, '') AS ownerId, coalesce(o.name, '') AS ownerName`);
 
+export const H7B_PRODUCT_CODE_CONTENT = query("H7b", "What each file read from the given products' repos defines, with its embedding", `
+  MATCH (p:Product)-[:HAS_REPO]->(r:Repo)
+  WHERE p.key IN $products
+  MATCH (c:CodeFile {repo: r.id})
+  WHERE c.outline IS NOT NULL
+  RETURN c.id AS id, c.path AS path, c.repo AS repo, coalesce(c.symbols, []) AS symbols, coalesce(c.routes, []) AS routes,
+         c.outline AS outline, c.embedding AS embedding`);
+
 export const H8_PRODUCT_IMPORTS = query("H8", "Imports between the given products' files", `
   MATCH (p:Product)-[:HAS_FEATURE]->(:Feature)-[:IMPLEMENTED_IN]->(a:CodeFile)-[:IMPORTS]->(b:CodeFile)
   WHERE p.key IN $products
@@ -79,16 +87,20 @@ export const H9_FEATURE_DETAILS = query("H9", "Features of a product with files 
 export const H10_STAFF_SEED = query("H10", "Staff accounts", `
   UNWIND $staff AS s
   MERGE (n:Staff {id: s.id})
-  SET n.name = s.name, n.email = s.email, n.role = s.role, n.passwordHash = s.passwordHash`);
+  SET n.name = s.name, n.email = s.email, n.role = s.role, n.title = s.title, n.passwordHash = s.passwordHash`);
 
 export const H11_STAFF_BY_EMAIL = query("H11", "A staff member by email (for login)", `
   MATCH (s:Staff {email: $email})
-  RETURN s.id AS id, s.name AS name, s.email AS email, s.role AS role, s.passwordHash AS passwordHash`);
+  RETURN s.id AS id, s.name AS name, s.email AS email, s.role AS role, coalesce(s.title, '') AS title, s.passwordHash AS passwordHash`);
+
+export const H23_STAFF_EXISTS = query("H23", "Is this staff account still there (a session outlives a reset)", `
+  MATCH (s:Staff {id: $id})
+  RETURN s.id AS id`);
 
 export const H12_STAFF = query("H12", "Staff with the clients assigned to them", `
   MATCH (s:Staff)
   OPTIONAL MATCH (c:Client)-[:ASSIGNED_AGENT]->(s)
-  RETURN s.id AS id, s.name AS name, s.email AS email, s.role AS role, collect(c.id) AS clients
+  RETURN s.id AS id, s.name AS name, s.email AS email, s.role AS role, coalesce(s.title, '') AS title, collect(c.id) AS clients
   ORDER BY name`);
 
 export const H13_SLA_SEED = query("H13", "SLA policy per plan", `
@@ -283,6 +295,19 @@ export const HG2_REPOS = query("HG2", "Connected repositories with their product
          coalesce(r.indexedAt, 0) AS indexedAt, coalesce(r.syncedAt, 0) AS syncedAt,
          coalesce(r.featureSource, '') AS featureSource, files, pullRequests, count(cm) AS commits
   ORDER BY id`);
+
+export const HG6_REPO_CODE_READ = query("HG6", "How many files of each repository have been read and embedded", `
+  MATCH (c:CodeFile)
+  WHERE c.outline IS NOT NULL
+  RETURN c.repo AS repo, count(c) AS read`);
+
+export const HG7_WEBHOOK_DELIVERY = query("HG7", "GitHub delivered a webhook for a repository (or it was refused)", `
+  MERGE (w:WebhookDelivery {repo: $repo})
+  SET w.lastAt = $ts, w.lastEvent = $event, w.lastError = $error, w.count = coalesce(w.count, 0) + 1`);
+
+export const HG8_WEBHOOK_DELIVERIES = query("HG8", "The latest webhook delivery per repository", `
+  MATCH (w:WebhookDelivery)
+  RETURN w.repo AS repo, w.lastAt AS lastAt, w.lastEvent AS lastEvent, coalesce(w.lastError, '') AS lastError, w.count AS count`);
 
 export const HG3_LINK_FEATURES_TO_PRODUCT = query("HG3", "Features found in a product's repo belong to that product", `
   MATCH (p:Product {key: $product})

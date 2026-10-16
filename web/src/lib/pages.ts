@@ -2,6 +2,7 @@ import {
   Boxes,
   Building2,
   ChartColumn,
+  Database,
   LayoutDashboard,
   MessageCircleQuestion,
   MessagesSquare,
@@ -39,6 +40,7 @@ export const PAGE_GROUPS: Array<{ group: string; pages: PageMeta[] }> = [
       { id: "patterns", label: "Patterns", icon: Waypoints, tone: "red" },
       { id: "analytics", label: "Analytics", icon: ChartColumn, tone: "amber" },
       { id: "network", label: "Network", icon: Orbit, tone: "violet" },
+      { id: "database", label: "Database", icon: Database, tone: "green" },
     ],
   },
   {

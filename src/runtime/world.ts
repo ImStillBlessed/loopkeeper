@@ -1,22 +1,23 @@
 import type { Graph } from "falkordb";
-import { HUB_STORY } from "../../data/synthetic/hub-story.js";
-import { SupportHub } from "../hub/support-hub.js";
-import { claudeLlm } from "../llm/llm.js";
-import { CAST, CLIENTS, productsOf, type ClientType, type Deployment, type Plan } from "../../data/synthetic/cast.js";
+import { CHATTER, HENSON, PROBLEMS, TEACHERS } from "../../data/demo/henson.js";
+import { productsOf, type ClientType, type Deployment, type Plan } from "../../data/synthetic/cast.js";
+import { deskGraph } from "../agent/conversations.js";
 import { config } from "../config.js";
 import { syncRepositories, type GithubRouter } from "../github/activity.js";
 import { githubConfigured } from "../github/api.js";
 import { getClientGraph, getHqGraph, graphExists, HQ_GRAPH } from "../graph/client.js";
-import { H18_CLIENTS, H19_CLIENT_DELETE, H21_SEED_VERSION, H5_PRODUCTS, HG2_REPOS, X14_CLIENT_SIGNALS_RESET } from "../graph/hq-queries.js";
-import { M2_RENAME_CLIENT, P3_GROUP, run, S3_PEOPLE } from "../graph/queries.js";
+import { H18_CLIENTS, H19_CLIENT_DELETE, H21_SEED_VERSION, H5_PRODUCTS, HG2_REPOS, HG4_REMOVE_REPO, X14_CLIENT_SIGNALS_RESET } from "../graph/hq-queries.js";
+import { M2_RENAME_CLIENT, P3_GROUP, RP5_FORGET_REPO, run, S3_PEOPLE } from "../graph/queries.js";
+import { ensureSchema } from "../graph/schema.js";
+import { SupportHub } from "../hub/support-hub.js";
 import { personId } from "../ingest/ids.js";
 import { copyProductReference } from "../hq/replicate.js";
-import { seedClientHistory } from "../hq/history.js";
-import { DEMO_DATA_VERSION, registerClient, resetGraph, seedClientGraph, seedHq } from "../hq/seed.js";
+import { DEMO_DATA_VERSION, registerClient, resetAllGraphs, resetGraph, seedClientGraph, seedHq } from "../hq/seed.js";
+import { claudeLlm } from "../llm/llm.js";
 import { ClientRuntime } from "./client-runtime.js";
 import { ChatClock } from "./clock.js";
 import { EventHub } from "./hub.js";
-import { Simulator, whatsappLabelFor } from "./simulator.js";
+import { SimulatedSchool } from "./teachers.js";
 
 export interface ClientRecord {
   id: string;
@@ -47,33 +48,29 @@ export interface ClientInput {
 const withProducts = (input: ClientInput): ClientInput => (input.deployments?.length ? { ...input, products: productsOf(input.deployments) } : input);
 
 /**
- * The whole running app: the HQ graph, one chat clock, the app-wide event stream, the simulated
- * WhatsApp groups, and a runtime per client. Created once at startup.
+ * The whole running app: the HQ graph, one chat clock, the app-wide event stream, a runtime per
+ * client, and the demo school whose teachers the model plays. Created once at startup.
  */
 export class World {
   readonly hub = new EventHub();
   readonly clock = new ChatClock();
-  readonly simulator: Simulator;
   /** The central support hub group (set once the clients are loaded). */
   supportHub!: SupportHub;
   private clients = new Map<string, ClientRuntime>();
+  /** Clients whose people are simulated (the demo school). */
+  private schools = new Map<string, SimulatedSchool>();
   private timers: Array<ReturnType<typeof setInterval>> = [];
   lastGithubError: string | undefined;
 
-  private constructor(readonly hq: Graph) {
-    this.simulator = new Simulator(
-      this.clock,
-      (m) => void this.clients.get(m.clientId)?.receive(m.senderLabel, m.text, { ts: m.ts, hasMedia: m.hasMedia }),
-      () => this.emitLive(),
-      () => [...this.clients.keys()],
-    );
-  }
+  private constructor(readonly hq: Graph) {}
 
   static async start(): Promise<World> {
     const hq = await getHqGraph();
     const world = new World(hq);
     if (!(await graphExists(HQ_GRAPH))) await world.seedDemo();
     else if (await world.demoIsOutdated()) await world.rebuildDemo();
+    // Indexes added since a graph was created (e.g. the code vector index) are created now.
+    await ensureSchema(hq);
     for (const client of await world.registry()) await world.loadClient(client);
     world.supportHub = await SupportHub.open({
       directory: () => world.registry(),
@@ -83,6 +80,8 @@ export class World {
       llm: claudeLlm,
     });
     world.startTimers();
+    // Live before a restart (or a code reload in development): stay live.
+    for (const school of world.schools.values()) if (school.wasLive) school.start();
     return world;
   }
 
@@ -91,41 +90,33 @@ export class World {
     return (row?.version ?? 0) < DEMO_DATA_VERSION;
   }
 
-  /** The demo data changed shape since this database was seeded: start the demo afresh. */
+  /** The demo data changed shape since this database was seeded: start again from scratch (settings stay). */
   private async rebuildDemo(): Promise<void> {
-    console.log("ℹ Rebuilding the demo data (its shape changed since this database was seeded)");
-    await resetGraph(this.hq);
-    for (const client of CLIENTS) await resetGraph(await getClientGraph(client.id));
+    console.log("ℹ Starting the demo data again (its shape changed since this database was seeded)");
+    await resetAllGraphs();
     await this.seedDemo();
   }
 
-  /** First start: Ednovax HQ and the four demo clients, each in its own graph. */
+  /** First start: Ednovax HQ and the demo school with its teachers, and no chat yet. */
   private async seedDemo(): Promise<void> {
-    await seedHq(this.hq, config.idHashSalt);
-    for (const client of CLIENTS) {
-      const graph = await getClientGraph(client.id);
-      await seedClientGraph(this.hq, graph, client, config.idHashSalt);
-      await seedClientHistory(this.hq, graph, client.id, this.clock.peek());
-    }
+    await seedHq(this.hq, config.idHashSalt, [HENSON]);
+    const members = TEACHERS.map((t) => ({ name: t.name, role: t.role, atClient: true }));
+    await seedClientGraph(this.hq, await getClientGraph(HENSON.id), HENSON, config.idHashSalt, members);
   }
 
   /**
-   * Puts the demo clients back to their four weeks of history, ending now: forgets what was learned
-   * since (live chat, imports), sets the chat clock back to real time and writes the history again.
-   * Groups, contacts, products and staff stay.
+   * A fresh start for the demo: every client forgets its chat, tickets and promises, the teachers
+   * start from their first problem, the hub and Ask history are emptied, and the clock is real time
+   * again. Clients, their groups and teachers, products, staff and settings stay.
    */
-  async restoreDemoHistory(): Promise<number> {
+  async startOver(): Promise<void> {
     this.pauseLive();
-    const demo = CLIENTS.map((client) => this.clients.get(client.id)).filter((runtime) => runtime !== undefined);
-    // Forget everything first, so the history's shared problems form fresh patterns.
-    for (const runtime of demo) await runtime.reset();
+    for (const runtime of this.clients.values()) await runtime.reset();
+    for (const school of this.schools.values()) await school.reset();
     await this.supportHub.reset();
+    await resetGraph(await deskGraph());
     this.clock.reset();
-    let tickets = 0;
-    for (const runtime of demo) tickets += await seedClientHistory(this.hq, runtime.graph, runtime.id, this.clock.peek());
-    for (const runtime of demo) await runtime.restoreFeed();
     this.emitLive();
-    return tickets;
   }
 
   async registry(): Promise<ClientRecord[]> {
@@ -136,7 +127,21 @@ export class World {
     if (!(await graphExists(`lk_client_${client.id}`))) {
       await seedClientGraph(this.hq, await getClientGraph(client.id), client, config.idHashSalt);
     }
-    this.clients.set(client.id, await ClientRuntime.load(client.id, this.services()));
+    await ensureSchema(await getClientGraph(client.id));
+    const runtime = await ClientRuntime.load(client.id, this.services());
+    this.clients.set(client.id, runtime);
+    if (client.id === HENSON.id) {
+      const school = await SimulatedSchool.load(
+        { name: client.name, city: client.city, teachers: TEACHERS, problems: PROBLEMS, chatter: CHATTER },
+        {
+          graph: runtime.graph,
+          llm: claudeLlm,
+          post: (teacher, text, hasMedia) => runtime.receive(teacher.name, text, { hasMedia }),
+          changed: () => this.emitLive(),
+        },
+      );
+      this.schools.set(client.id, school);
+    }
   }
 
   private services() {
@@ -180,6 +185,8 @@ export class World {
     const runtime = this.client(clientId);
     runtime.dispose();
     this.clients.delete(clientId);
+    this.schools.get(clientId)?.stop();
+    this.schools.delete(clientId);
     await resetGraph(runtime.graph);
     await run(this.hq, X14_CLIENT_SIGNALS_RESET, { clientId });
     await run(this.hq, H19_CLIENT_DELETE, { id: clientId });
@@ -193,25 +200,43 @@ export class World {
     }
   }
 
+  /** Forgets a repository and its files, in HQ and in every client's copy. */
+  async forgetRepo(repo: string): Promise<void> {
+    await run(this.hq, HG4_REMOVE_REPO, { id: repo });
+    for (const runtime of this.clients.values()) await run(runtime.graph, RP5_FORGET_REPO, { repo });
+  }
+
   async products() {
     return run<{ key: string; name: string; description: string; repos: string[]; features: number; clients: string[] }>(this.hq, H5_PRODUCTS);
   }
 
-  // ─── The live (simulated) WhatsApp groups ──────────────────────────────────
+  // ─── The demo school's teachers (played by the model) ──────────────────────
 
-  goLive(paceMs?: number): void {
-    this.simulator.start(paceMs);
+  get live(): boolean {
+    return [...this.schools.values()].some((school) => school.running);
   }
 
-  /** Pauses the simulated groups; returns whether they were running. */
+  /** The teachers come to life: they raise problems and react to what Ednovax says and does. */
+  goLive(): void {
+    for (const school of this.schools.values()) school.start();
+    this.emitLive();
+  }
+
+  /** The teachers go quiet; returns whether they were live. */
   pauseLive(): boolean {
-    const wasLive = this.simulator.running;
-    this.simulator.stop();
+    const wasLive = this.live;
+    for (const school of this.schools.values()) school.stop();
+    this.emitLive();
     return wasLive;
   }
 
   emitLive(): void {
-    this.hub.emit({ kind: "live", running: this.simulator.running, clock: this.clock.peek() });
+    this.hub.emit({ kind: "live", running: this.live, clock: this.clock.peek() });
+  }
+
+  /** The simulated school behind a client, if its people are simulated. */
+  school(clientId: string): SimulatedSchool | undefined {
+    return this.schools.get(clientId);
   }
 
   /** A message routed from the central support hub joins the client's "Central support hub" group. */
@@ -220,7 +245,7 @@ export class World {
     if (!runtime) return;
     const groupId = `grp_${clientId}_hub`;
     await run(runtime.graph, P3_GROUP, { id: groupId, name: "Central support hub", source: "hub", ts });
-    await runtime.receive(whatsappLabelFor(sender), text, { groupId, ts });
+    await runtime.receive(sender, text, { groupId, ts });
   }
 
   /**
@@ -240,24 +265,15 @@ export class World {
     await runtime.receive(staff.name, text, { groupId, ts, trusted: true });
   }
 
-  /** Someone says something in the central support hub (simulator, CLI, or the WhatsApp webhook). */
+  /** Someone says something in the central support hub (the dashboard, the CLI, or the WhatsApp webhook). */
   sayInHub(sender: string, text: string, ts = this.clock.now()): Promise<void> {
-    return this.supportHub.receive(whatsappLabelFor(sender), text, ts);
+    return this.supportHub.receive(sender, text, ts);
   }
 
-  /** Plays a morning in the hub: staff forwarding messages from several schools. */
-  async playHubStory(paceMs = 2500): Promise<number> {
-    for (const line of HUB_STORY) {
-      const member = CAST.find((m) => m.key === line.sender);
-      await this.sayInHub(member?.name ?? line.sender, line.text);
-      await new Promise((resolve) => setTimeout(resolve, paceMs));
-    }
-    return HUB_STORY.length;
-  }
-
-  /** Someone in a client's group says something (from the composer or the CLI). */
-  say(clientId: string, sender: string, text: string): void {
-    void this.client(clientId).receive(whatsappLabelFor(sender), text);
+  /** Ednovax staff write in a client's group. A simulated school hears it and its teachers answer. */
+  async say(clientId: string, sender: string, text: string): Promise<void> {
+    await this.client(clientId).receive(sender, text);
+    this.schools.get(clientId)?.heard(sender, text);
   }
 
   // ─── GitHub ────────────────────────────────────────────────────────────────

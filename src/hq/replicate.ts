@@ -1,9 +1,12 @@
 import type { Graph } from "falkordb";
-import { H6_PRODUCT_FEATURES, H7_PRODUCT_FILES, H8_PRODUCT_IMPORTS } from "../graph/hq-queries.js";
-import { IX5_IMPORTS, RP1_FEATURES, RP2_FILES, RP3_OWNERS, run } from "../graph/queries.js";
+import { H6_PRODUCT_FEATURES, H7B_PRODUCT_CODE_CONTENT, H7_PRODUCT_FILES, H8_PRODUCT_IMPORTS } from "../graph/hq-queries.js";
+import { IX5_IMPORTS, RP1_FEATURES, RP2_FILES, RP3_OWNERS, RP4_CODE_CONTENT, run } from "../graph/queries.js";
+
+const CONTENT_BATCH = 100;
 
 /**
- * Copies the product reference (features, code files, owners, imports) for the given products
+ * Copies the product reference (features, code files, owners, imports, and what each file defines
+ * with its embedding) for the given products
  * from HQ into one client's graph. Only product data moves; nothing about other clients does.
  * Run when a client is created, its products change, or a product's repo is re-indexed.
  */
@@ -22,4 +25,9 @@ export async function copyProductReference(hq: Graph, clientGraph: Graph, produc
 
   const imports = await run<{ from: string; to: string }>(hq, H8_PRODUCT_IMPORTS, { products });
   await run(clientGraph, IX5_IMPORTS, { imports });
+
+  const content = await run(hq, H7B_PRODUCT_CODE_CONTENT, { products });
+  for (let start = 0; start < content.length; start += CONTENT_BATCH) {
+    await run(clientGraph, RP4_CODE_CONTENT, { files: content.slice(start, start + CONTENT_BATCH) });
+  }
 }

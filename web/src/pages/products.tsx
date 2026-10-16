@@ -1,15 +1,16 @@
-import { GitBranch, RefreshCw, Trash2 } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleX, GitBranch, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Empty, ErrorNote, Loading, Page, PageHeader, Panel } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { CopyField } from "@/components/ui/copy-field";
 import { Input } from "@/components/ui/input";
-import { api, type ClientSummary, type Deployment, type Feature, type Product, type Repo } from "@/lib/api";
+import { api, type CheckState, type ClientSummary, type Deployment, type Feature, type Product, type Repo, type RepoHealth } from "@/lib/api";
 import { can, useUser } from "@/lib/auth";
 import { formatShortDay, plural } from "@/lib/format";
 import { useLiveQuery } from "@/lib/live";
-import { TENANCY, type Tone } from "@/lib/palette";
+import { PRODUCT_NAMES, TENANCY, type Tone } from "@/lib/palette";
 import { href } from "@/lib/router";
 
 /** Ednovax's products: who uses them, their features and code owners, and the GitHub repos behind them. */
@@ -62,6 +63,8 @@ export function ProductsPage() {
           <ErrorNote message={`GitHub: ${syncError ?? repos.data?.lastError}`} />
         </div>
       )}
+      <RepoConnections manage={manage} />
+
       {products.error && <ErrorNote message={products.error} />}
       {!products.data && !products.error && <Loading />}
 
@@ -86,6 +89,119 @@ export function ProductsPage() {
 }
 
 type ClientDeployment = Deployment & { clientId: string; clientName: string };
+
+const CHECKS: Array<{ key: "access" | "issues" | "webhook" | "code"; label: string }> = [
+  { key: "access", label: "Access" },
+  { key: "issues", label: "Opening issues" },
+  { key: "webhook", label: "Webhook" },
+  { key: "code", label: "Code read" },
+];
+
+const STATE_ICON: Record<CheckState, { icon: typeof CircleCheck; className: string }> = {
+  ok: { icon: CircleCheck, className: "text-green" },
+  warn: { icon: CircleAlert, className: "text-amber" },
+  fail: { icon: CircleX, className: "text-red" },
+};
+
+/**
+ * Every repository a product or a client runs from, and whether it's really connected: can we read
+ * it, open issues there, does GitHub's webhook reach us, and has the code been read.
+ */
+function RepoConnections({ manage }: { manage: boolean }) {
+  const [health, setHealth] = useState<RepoHealth[]>();
+  const [publicUrl, setPublicUrl] = useState<string>();
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string>();
+  const [connecting, setConnecting] = useState<string>();
+
+  const check = async (refresh: boolean) => {
+    setChecking(true);
+    setError(undefined);
+    try {
+      setHealth(await api.repoHealth(refresh));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
+  useEffect(() => {
+    void check(false);
+    api.status().then((s) => setPublicUrl(s.publicUrl), () => undefined);
+  }, []);
+
+  const connect = async (repo: string, product: string) => {
+    setConnecting(repo);
+    setError(undefined);
+    try {
+      await api.connectRepo(repo, product);
+      await check(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setConnecting(undefined);
+    }
+  };
+
+  return (
+    <Panel
+      title="GitHub connections"
+      className="mb-5"
+      action={
+        <Button size="sm" variant="outline" onClick={() => check(true)} disabled={checking}>
+          <RefreshCw className={checking ? "animate-spin" : undefined} /> Check again
+        </Button>
+      }
+    >
+      {!health && !error && <Loading label="Checking each repository with GitHub" />}
+      {error && (
+        <div className="px-5 pb-4">
+          <ErrorNote message={error} />
+        </div>
+      )}
+      {health && health.length === 0 && <Empty title="No repositories yet">Connect one to a product below, or set where a client runs in Settings → Clients.</Empty>}
+      <ul className="divide-y divide-line-soft">
+        {health?.map((h) => (
+          <li key={h.repo} className="px-5 py-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <a href={`https://github.com/${h.repo}`} target="_blank" rel="noreferrer" className="font-mono text-[13.5px] font-semibold hover:text-primary hover:underline">
+                {h.repo}
+              </a>
+              <span className="text-[12.5px] text-muted">
+                {[h.product ? `Code for ${PRODUCT_NAMES[h.product] ?? h.product}` : "", h.clients.length ? `Runs ${h.clients.join(", ")}` : ""].filter(Boolean).join(". ")}
+              </span>
+              {manage && !h.product && h.access.state === "ok" && h.deployedProducts[0] && (
+                <Button size="sm" variant="navy" className="ml-auto" disabled={connecting === h.repo} onClick={() => connect(h.repo, h.deployedProducts[0])}>
+                  {connecting === h.repo ? "Reading the code…" : "Connect and read the code"}
+                </Button>
+              )}
+            </div>
+            <dl className="mt-3 grid gap-2.5 sm:grid-cols-2">
+              {CHECKS.map(({ key, label }) => {
+                const { state, text } = h[key];
+                const { icon: Icon, className } = STATE_ICON[state];
+                return (
+                  <div key={key} className="flex gap-2.5">
+                    <Icon className={`mt-0.5 size-4 shrink-0 ${className}`} aria-label={state} />
+                    <div className="min-w-0">
+                      <dt className="text-[13px] font-semibold text-ink">{label}</dt>
+                      <dd className="text-[13px] text-ink-2">{text}</dd>
+                    </div>
+                  </div>
+                );
+              })}
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <div className="border-t border-line-soft px-5 py-4">
+        <div className="mb-1.5 text-[13px] font-semibold">Webhook URL</div>
+        <CopyField value={`${publicUrl ?? window.location.origin}/api/github/webhook`} />
+        <p className="mt-1.5 text-[12.5px] text-muted">In each repository: Settings → Webhooks. Content type application/json, the webhook secret from Settings, events Pull requests, Pushes and Issues.</p>
+      </div>
+    </Panel>
+  );
+}
 
 function ProductPanel({
   product,
@@ -120,7 +236,7 @@ function ProductPanel({
     setResult(undefined);
     try {
       const done = await api.connectRepo(repo.trim(), product.key);
-      setResult(`Connected ${done.repo}: ${plural(done.files, "file")}, ${plural(done.features, "feature")}, ${plural(done.owners, "code owner")}.`);
+      setResult(`Connected ${done.repo}: ${plural(done.files, "file")}, ${done.read} read and searchable, ${plural(done.features, "feature")}, ${plural(done.owners, "code owner")}.`);
       setRepo("");
       onChange();
     } catch (e) {

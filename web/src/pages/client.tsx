@@ -1,7 +1,8 @@
 import { ArrowRight, Check, Copy, MessageCircleQuestion, MessagesSquare, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { HealthBadge, HealthMeter, isOpen } from "@/components/desk";
-import { Feed, ReplyBox, Simulator } from "@/components/feed";
+import { Feed, ReplyBox } from "@/components/feed";
+import { TeachersPanel } from "@/components/teachers";
 import { Empty, ErrorNote, Loading, Page, PageHeader, Panel, Segmented, Tabs } from "@/components/page";
 import { TicketTable } from "@/components/ticket-table";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +82,7 @@ export function ClientPage({ clientId, tab }: { clientId: string; tab: string })
             <Panel title="Reply" bodyClassName="p-4">
               <ReplyBox clientId={clientId} />
             </Panel>
-            <Simulator clientId={clientId} />
+            <TeachersPanel clientId={clientId} />
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
-import { Bot, CornerDownLeft, Flame, Play, Send } from "lucide-react";
+import { Bot, CornerDownLeft, Flame, Send } from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, clientApi, type PreparedKind, type Sentiment } from "@/lib/api";
+import { api, clientApi, type Sentiment } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import { formatDay, formatTime } from "@/lib/format";
 import { useLive, useLiveQuery } from "@/lib/live";
@@ -9,12 +9,8 @@ import { cn } from "@/lib/utils";
 import { Avatar } from "./desk";
 import { ErrorNote, Loading } from "./page";
 import { Button } from "./ui/button";
-import { Input, Textarea } from "./ui/input";
-import { Select } from "./ui/select";
+import { Textarea } from "./ui/input";
 import { Tooltip } from "./ui/tooltip";
-
-/** Ednovax staff appear in every client's group; their messages sit on the right. */
-export const STAFF_NAMES = new Set(["Tunde Bakare", "Kemi Ojo", "Ngozi Eze", "Bola Ajayi", "Ifeoma Obi", "Dayo Akande"]);
 
 type Item =
   | {
@@ -62,6 +58,8 @@ function FeedView({ clientId, groupFilter, limit, className }: FeedProps) {
   // Live events from before this view opened are already in the stored history.
   const [start] = useState(() => events.length);
   const stored = useLiveQuery(() => clientApi(clientId).feed(), [clientId]);
+  // Ednovax staff write in every client's group; their messages sit on the right.
+  const staff = useLiveQuery(api.staff);
 
   const items = useMemo<Item[]>(() => {
     const list: Item[] = (stored.data ?? []).map((m) => ({
@@ -105,7 +103,7 @@ function FeedView({ clientId, groupFilter, limit, className }: FeedProps) {
   if (stored.error) return <ErrorNote message={stored.error} />;
   if (!stored.data) return <Loading label="Loading the conversation" />;
 
-  const isStaff = (name: string) => STAFF_NAMES.has(name) || name === user.name;
+  const isStaff = (name: string) => name === user.name || Boolean(staff.data?.some((member) => member.name === name));
 
   return (
     <div
@@ -249,111 +247,6 @@ export function ReplyBox({ clientId, defaultText = "", onSent }: { clientId: str
         <Button onClick={send} disabled={busy || !text.trim()}>
           <Send /> Send to group
         </Button>
-      </div>
-    </div>
-  );
-}
-
-const STORIES: Array<{ id: string; label: string }> = [
-  { id: "S1", label: "Scores not saving at three schools" },
-  { id: "S2", label: "CBT timer bug, fixed and confirmed" },
-  { id: "S3", label: "A promised student list never arrives" },
-  { id: "S4", label: "Mock exam moved to Friday" },
-  { id: "S5", label: "Request: export results to Excel" },
-  { id: "S6", label: "Slow login that fixes itself" },
-  { id: "S7", label: "\"It's working now\" with two issues open" },
-  { id: "S8", label: "Lecture centre QR attendance breaks" },
-];
-
-const PREPARED: Array<{ kind: PreparedKind; label: string }> = [
-  { kind: "issue", label: "Problem" },
-  { kind: "question", label: "Question" },
-  { kind: "promise", label: "Promise" },
-  { kind: "fixed", label: "It's fixed" },
-  { kind: "greeting", label: "Small talk" },
-];
-
-/** Demo controls: speak as someone in the client's group, or play a ready-made storyline. */
-export function Simulator({ clientId }: { clientId: string }) {
-  const people = useLiveQuery(() => clientApi(clientId).people(), [clientId]);
-  const cast = people.data?.cast ?? [];
-  const [sender, setSender] = useState("");
-  const [text, setText] = useState("");
-  const [story, setStory] = useState("S1");
-  const [note, setNote] = useState<string>();
-  const [error, setError] = useState<string>();
-
-  const who = sender || cast.find((c) => c.role === "teacher" || c.role === "admin")?.key || cast[0]?.key || "";
-
-  const run = async (action: () => Promise<string>) => {
-    setError(undefined);
-    try {
-      setNote(await action());
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border border-dashed border-line bg-card/60 p-5">
-      <div className="label mb-3">Simulate the client's WhatsApp group (demo)</div>
-      <div className="flex flex-col gap-3">
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!text.trim() || !who) return;
-            void run(async () => {
-              const result = await clientApi(clientId).say(who, text);
-              setText("");
-              return `Sent as ${result.sender}`;
-            });
-          }}
-        >
-          <Select
-            label="Speak as"
-            size="sm"
-            value={who}
-            onValueChange={setSender}
-            options={cast.map((c) => ({ value: c.key, label: c.name, hint: c.role }))}
-            className="w-52"
-          />
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type what they say…" className="h-8 min-w-48 flex-1 text-[14px]" />
-          <Button type="submit" size="sm" variant="navy" disabled={!text.trim()}>
-            <Send /> Say it
-          </Button>
-        </form>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12.5px] font-medium text-muted">Ready-made:</span>
-          {PREPARED.map((p) => (
-            <Button
-              key={p.kind}
-              size="sm"
-              variant="outline"
-              onClick={() => run(async () => `Sent as ${(await clientApi(clientId).sendPrepared(p.kind)).sender}`)}
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12.5px] font-medium text-muted">Story:</span>
-          <Select label="Story" size="sm" value={story} onValueChange={setStory} options={STORIES.map((s) => ({ value: s.id, label: `${s.id} · ${s.label}` }))} className="min-w-64" />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              run(async () => {
-                await api.playStory(story);
-                return `Playing ${story}. It may involve other clients' groups too.`;
-              })
-            }
-          >
-            <Play /> Play
-          </Button>
-        </div>
-        {note && !error && <p className="text-[12.5px] font-medium text-green">{note}</p>}
-        {error && <ErrorNote message={error} />}
       </div>
     </div>
   );

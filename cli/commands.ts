@@ -36,30 +36,19 @@ interface Group {
   used: number;
 }
 
-const STORIES: Record<string, string> = {
-  S1: "Three schools report scores not saving, in different words (a cross-client pattern)",
-  S2: "CBT timer bug: report → screenshot → fix promised → \"it's working now\"",
-  S3: "An admin promises the student list by Thursday, and never sends it",
-  S4: "A school agrees to move its mock exam to Friday",
-  S5: "Feature request: export results to Excel",
-  S6: "Login is slow, then fine 20 minutes later",
-  S7: "\"It's working now\" from someone with two open issues",
-  S8: "The lecture centre's QR attendance breaks and gets fixed",
-};
-
 const c = (session: Session) => `/clients/${session.client}`;
 
-async function send(session: Session, body: Record<string, unknown>) {
-  const sent = await session.api.post<{ sender: string; text: string }>(`${c(session)}/send`, body);
-  session.print(color.faint(`  → sent as ${sent.sender}`));
+interface TeachersView {
+  cases: Array<{ teacher: string; situation: string; state: string; ticketId: string | null }>;
+  next: { teacher: string } | null;
 }
 
-/** issue, greeting, question, promise, fixed: a ready-made message in the current client's group. */
-const prepared = (kind: string, help: string): Command => ({
-  usage: `${kind} [person]`,
-  help,
-  run: (args, session) => send(session, { kind, sender: args || undefined }),
-});
+const CASE_STATE: Record<string, string> = {
+  waiting_reply: "waiting for a reply",
+  waiting_fix: "waiting for a fix",
+  checking: "trying the fix",
+  settled: "happy",
+};
 
 async function findClient(session: Session, query: string): Promise<Client | undefined> {
   const clients = await session.api.get<Client[]>("/clients");
@@ -72,11 +61,11 @@ export const COMMANDS: Record<string, Command> = {
     usage: "help",
     help: "Show this list",
     run: async (_args, session) => {
-      session.print(color.bold("\n  Talk in the current client's group"));
-      for (const name of ["say", "issue", "greet", "question", "promise", "fixed"]) line(session, name);
-      session.print(color.faint("  Shortcut: just type  chidi: the timer is not showing"));
-      session.print(color.bold("\n  Control the live chat (all clients)"));
-      for (const name of ["story", "live", "pause", "time", "smalltalk", "status"]) line(session, name);
+      session.print(color.bold("\n  Reply in the current client's group"));
+      line(session, "say");
+      session.print(color.faint("  Shortcut: anything that isn't a command is sent as your reply"));
+      session.print(color.bold("\n  The demo school (its teachers are played by the model)"));
+      for (const name of ["live", "pause", "next", "teachers", "start-over", "time", "smalltalk", "status"]) line(session, name);
       session.print(color.bold("\n  Clients, groups and GitHub"));
       for (const name of ["clients", "use", "new-client", "groups", "group", "new-group", "people", "reset", "repos", "connect", "sync", "github"]) line(session, name);
       session.print(color.bold("\n  Ask"));
@@ -86,45 +75,54 @@ export const COMMANDS: Record<string, Command> = {
   },
 
   say: {
-    usage: "say <person>: <message>",
-    help: "Send anything, as anyone (a new name joins the group)",
+    usage: "say <message>",
+    help: "Reply in the group as yourself",
     run: async (args, session) => {
-      const match = /^(.+?):\s*(.+)$/.exec(args);
-      if (!match) return session.print(color.coral("  Use: say <person>: <message>"));
-      await send(session, { sender: match[1], text: match[2] });
+      if (!args.trim()) return session.print(color.coral("  Use: say <message>"));
+      await session.api.post(`${c(session)}/reply`, { text: args });
     },
   },
-  issue: prepared("issue", "Someone at the client reports a problem"),
-  greet: { ...prepared("greeting", "Small talk: a greeting, prayer or forward"), usage: "greet [person]" },
-  question: prepared("question", "Someone at the client asks how to do something"),
-  promise: prepared("promise", "Someone from Ednovax promises to do something"),
-  fixed: prepared("fixed", "Someone at the client says it's working now"),
 
-  story: {
-    usage: "story <S1–S8>",
-    help: "Play a storyline into whichever clients it involves",
-    run: async (args, session) => {
-      const scenario = args.trim().toUpperCase();
-      if (!STORIES[scenario]) {
-        for (const [id, text] of Object.entries(STORIES)) session.print(`  ${color.sunflower(id)}  ${text}`);
-        return;
-      }
-      await session.api.post("/live/story", { scenario });
-      session.print(color.faint(`  Playing ${scenario}: ${STORIES[scenario]}`));
+  live: {
+    usage: "live",
+    help: "Go live: the teachers start raising problems and answering you",
+    run: async (_args, session) => {
+      await session.api.post("/live/start");
+      session.print(color.mint('  ● Live. The teachers react to what you say and do. Type "pause" to stop.'));
     },
   },
-  live: {
-    usage: "live [seconds between messages]",
-    help: "Go live: every client's group starts chatting on its own",
-    run: async (args, session) => {
-      const seconds = Number(args) || 2.5;
-      await session.api.post("/live/start", { paceMs: seconds * 1000 });
-      session.print(color.mint(`  ● Live. A message every ~${seconds}s. Type "pause" to stop.`));
+  next: {
+    usage: "next",
+    help: "A teacher raises their next problem now",
+    run: async (_args, session) => {
+      const { teacher } = await session.api.post<{ teacher: string }>(`${c(session)}/teachers/next`);
+      session.print(color.faint(`  ${teacher} is writing…`));
+    },
+  },
+  teachers: {
+    usage: "teachers",
+    help: "Who at the school is waiting on what",
+    run: async (_args, session) => {
+      const view = await session.api.get<TeachersView>(`${c(session)}/teachers`);
+      if (view.cases.length === 0) session.print(color.muted("  Nobody has raised anything yet."));
+      for (const item of view.cases) {
+        session.print(`  ${color.bold(item.teacher)}  ${color.sunflower(CASE_STATE[item.state] ?? item.state)}  ${color.faint(item.ticketId ?? "no ticket yet")}`);
+        session.print(color.faint(`    ${item.situation}`));
+      }
+      session.print(color.faint(view.next ? `  Next up: ${view.next.teacher}` : "  No more problems to raise."));
+    },
+  },
+  "start-over": {
+    usage: "start-over",
+    help: "Clear every chat and ticket; the teachers start again (leads and admins)",
+    run: async (_args, session) => {
+      await session.api.post("/demo/start-over");
+      session.print(color.muted("  Started over. Type \"live\" when you're ready."));
     },
   },
   pause: {
     usage: "pause",
-    help: "Stop the simulated groups",
+    help: "The teachers go quiet",
     run: async (_args, session) => {
       await session.api.post("/live/stop");
       session.print(color.muted("  Paused."));
@@ -221,10 +219,10 @@ export const COMMANDS: Record<string, Command> = {
   },
   people: {
     usage: "people",
-    help: "Who you can speak as in the current client's group",
+    help: "Who is in the current client's groups",
     run: async (_args, session) => {
-      const { cast } = await session.api.get<{ cast: Array<{ key: string; name: string; role: string }> }>(`${c(session)}/people`);
-      for (const person of cast) session.print(`  ${color.sky(person.key.padEnd(8))} ${person.name}  ${color.faint(person.role)}`);
+      const { people } = await session.api.get<{ people: Array<{ name: string; role: string }> }>(`${c(session)}/people`);
+      for (const person of people) session.print(`  ${person.name}  ${color.faint(person.role)}`);
     },
   },
   reset: {

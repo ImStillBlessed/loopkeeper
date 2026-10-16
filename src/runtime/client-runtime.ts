@@ -26,7 +26,7 @@ export interface WorldServices {
   hq: Graph;
   hub: EventHub;
   clock: ChatClock;
-  /** Pause the simulated groups (when the model provider refuses requests). */
+  /** Pause the simulated school (when the model provider refuses requests). */
   pauseLive: () => boolean;
 }
 
@@ -64,11 +64,13 @@ export class ClientRuntime {
     this.world.hub.emit({ ...event, clientId: this.id });
   }
 
-  /** A message arrives in one of this client's WhatsApp groups (simulated, typed, or a real webhook). */
-  async receive(senderLabel: string, text: string, options: { groupId?: string; ts?: number; hasMedia?: boolean; trusted?: boolean } = {}): Promise<void> {
+  /** A message arrives in one of this client's WhatsApp groups (simulated, typed, or a real webhook). Returns its id. */
+  async receive(senderLabel: string, text: string, options: { groupId?: string; ts?: number; hasMedia?: boolean; trusted?: boolean } = {}): Promise<string> {
     const groupId = options.groupId ?? (await this.defaultGroupId());
     const ts = options.ts ?? this.world.clock.now();
-    this.inbox.push(makeLiveMessage({ groupId, senderLabel, text, ts, hasMedia: options.hasMedia, trusted: options.trusted, salt: config.idHashSalt }));
+    const message = makeLiveMessage({ groupId, senderLabel, text, ts, hasMedia: options.hasMedia, trusted: options.trusted, salt: config.idHashSalt });
+    this.inbox.push(message);
+    return message.id;
   }
 
   async defaultGroupId(): Promise<string> {

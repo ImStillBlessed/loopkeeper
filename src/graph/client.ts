@@ -27,6 +27,20 @@ export function getFalkorDB(): Promise<FalkorDB> {
 export const HQ_GRAPH = "lk_hq";
 const CLIENT_PREFIX = "lk_client_";
 
+/** The name each graph handle was opened with (FalkorDB's handle keeps it private). */
+const names = new WeakMap<Graph, string>();
+
+/** Opens a graph by name. Every graph the app uses is opened here, so its queries can be labelled. */
+export async function selectGraph(name: string): Promise<Graph> {
+  const graph = (await getFalkorDB()).selectGraph(name);
+  names.set(graph, name);
+  return graph;
+}
+
+export function graphName(graph: Graph): string {
+  return names.get(graph) ?? "unnamed";
+}
+
 export function clientGraphName(clientId: string): string {
   if (!/^[a-z0-9_]+$/.test(clientId)) {
     throw new Error(`Invalid client id "${clientId}": use lowercase letters, digits and underscores`);
@@ -35,11 +49,11 @@ export function clientGraphName(clientId: string): string {
 }
 
 export async function getHqGraph(): Promise<Graph> {
-  return (await getFalkorDB()).selectGraph(HQ_GRAPH);
+  return selectGraph(HQ_GRAPH);
 }
 
 export async function getClientGraph(clientId: string): Promise<Graph> {
-  return (await getFalkorDB()).selectGraph(clientGraphName(clientId));
+  return selectGraph(clientGraphName(clientId));
 }
 
 /** Client ids that have a graph in FalkorDB. */

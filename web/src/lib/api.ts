@@ -15,6 +15,8 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  /** Their job, e.g. "Tech lead". */
+  title: string;
 }
 
 export interface FeedMessage {
@@ -216,11 +218,54 @@ export interface Repo {
   commits: number;
 }
 
+export type CheckState = "ok" | "warn" | "fail";
+
+/** Is a repository really connected: access, issues, webhook and code, each with what to do. */
+export interface RepoHealth {
+  repo: string;
+  product: string | null;
+  clients: string[];
+  deployedProducts: string[];
+  access: { state: CheckState; text: string };
+  issues: { state: CheckState; text: string };
+  webhook: { state: CheckState; text: string };
+  code: { state: CheckState; text: string };
+}
+
+/** One FalkorDB query as it ran (see the Database page). */
+export interface QueryRun {
+  seq: number;
+  id: string;
+  title: string;
+  graph: string;
+  ts: number;
+  engineMs: number;
+  totalMs: number;
+  rows: number;
+  writes: Record<string, number>;
+  cached: boolean;
+  vector: boolean;
+  error?: string;
+}
+
+export interface DbGraph {
+  name: string;
+  kind: "hq" | "client" | "hub" | "desk";
+  title: string;
+  holds: string;
+  nodes: number;
+  relationships: number;
+  labels: Array<{ label: string; count: number }>;
+  relationshipTypes: Array<{ type: string; count: number }>;
+  indexes: Array<{ label: string; property: string; type: string; entity: string; status: string; options: Record<string, unknown> }>;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
   email: string;
   role: Role;
+  title: string;
   clients: string[];
 }
 
@@ -286,6 +331,8 @@ export interface TicketDetail {
   history: Array<{ from: string; to: string; at: number; confidence: number; by: string; messageId: string | null; because: string | null }>;
   impact: Array<{ schoolId: string; school: string; hasReported: boolean }>;
   dependentCode: Array<{ file: string; feature: string | null }>;
+  /** Where the problem most likely lives, found by the model reading the code. */
+  likelyCode: Array<{ path: string; repo: string; functions: string[]; why: string; confidence: number; readSource: boolean }>;
 }
 
 export interface FollowUps {
@@ -358,7 +405,26 @@ export interface Settings {
   whatsappHubGroupId: string;
 }
 
-export type PreparedKind = "issue" | "greeting" | "question" | "promise" | "fixed";
+/** Where a simulated teacher's problem stands, from the school's side. */
+export type TeacherCaseState = "waiting_reply" | "waiting_fix" | "checking" | "settled";
+
+/** The demo school: its teachers (played by the model) and what each is waiting on. */
+export interface TeachersView {
+  running: boolean;
+  teachers: Array<{ key: string; name: string; job: string }>;
+  cases: Array<{
+    problemId: string;
+    teacher: string;
+    kind: "bug" | "question" | "feature_request";
+    situation: string;
+    state: TeacherCaseState;
+    ticketId: string | null;
+    ticketTitle: string | null;
+    reportedAt: number;
+  }>;
+  next: { teacher: string; situation: string } | null;
+  remaining: number;
+}
 
 export interface ClientInput {
   name: string;
@@ -410,10 +476,10 @@ export const api = {
   me: () => request<User>("/auth/me"),
   logIn: (email: string, password: string) => send<User>("POST", "/auth/login", { email, password }),
   logOut: () => send("POST", "/auth/logout"),
-  demoAccounts: () => request<{ password: string; accounts: Array<{ name: string; email: string; role: Role }> }>("/auth/demo-accounts"),
+  demoAccounts: () => request<{ password: string; accounts: Array<{ name: string; email: string; role: Role; title: string }> }>("/auth/demo-accounts"),
 
   // The desk
-  status: () => request<{ hasApiKey: boolean; githubConfigured: boolean }>("/status"),
+  status: () => request<{ hasApiKey: boolean; githubConfigured: boolean; publicUrl: string }>("/status"),
   overview: () => request<Overview>("/overview"),
   tickets: () => request<Ticket[]>("/tickets"),
   clients: () => request<ClientSummary[]>("/clients"),
@@ -427,11 +493,10 @@ export const api = {
 
   // Live demo controls
   live: () => request<{ running: boolean; clock: number }>("/live"),
-  goLive: (paceMs?: number) => send<{ running: boolean; clock: number }>("POST", "/live/start", { paceMs }),
+  goLive: () => send<{ running: boolean; clock: number }>("POST", "/live/start"),
   pause: () => send<{ running: boolean; clock: number }>("POST", "/live/stop"),
-  playStory: (scenario: string) => send("POST", "/live/story", { scenario }),
   advanceClock: (hours: number) => send<{ running: boolean; clock: number }>("POST", "/clock/advance", { hours }),
-  restoreDemo: () => send<{ ok: boolean; tickets: number }>("POST", "/demo/restore"),
+  startOver: () => send("POST", "/demo/start-over"),
 
   // HQ admin
   addClient: (input: ClientInput) => send<ClientRecord>("POST", "/clients", input),
@@ -441,7 +506,17 @@ export const api = {
   features: (product: string) => request<Feature[]>(`/products/${product}/features`),
   repos: () => request<{ githubConfigured: boolean; lastError: string | null; repos: Repo[] }>("/repos"),
   connectRepo: (repo: string, product: string) =>
-    send<{ repo: string; files: number; features: number; owners: number; featureSource: string }>("POST", "/repos", { repo, product }),
+    send<{ repo: string; files: number; read: number; features: number; owners: number; featureSource: string; health?: RepoHealth }>("POST", "/repos", { repo, product }),
+  repoHealth: (refresh = false) => request<RepoHealth[]>(`/repos/health${refresh ? "?refresh=1" : ""}`),
+
+  // The database (FalkorDB) at work
+  database: () => request<{ graphs: DbGraph[] }>("/db"),
+  queryText: (id: string) => request<{ id: string; title: string; cypher: string }>(`/db/queries/${id}`),
+  queries: (onRun: (run: QueryRun) => void) => {
+    const source = new EventSource("/api/db/queries");
+    source.onmessage = (message) => onRun(JSON.parse(message.data));
+    return () => source.close();
+  },
   removeRepo: (repo: string) => request(`/repos/${repo}`, { method: "DELETE" }),
   syncRepos: () => send("POST", "/repos/sync"),
   staff: () => request<StaffMember[]>("/staff"),
@@ -453,7 +528,6 @@ export const api = {
   // The central support hub (leads, admins, developers)
   hub: () => request<{ entries: HubEntry[]; pending: number }>("/hub"),
   sayInHub: (sender: string, text: string) => send("POST", "/hub/send", { sender, text }),
-  playHubStory: () => send("POST", "/hub/story"),
   routeHubMessage: (id: string, clientIds: string[]) => send("POST", `/hub/${id}/assign`, { clientIds }),
   ignoreHubMessage: (id: string) => send("POST", `/hub/${id}/ignore`),
   importHub: (text: string) => request<{ messages: number }>("/hub/import", { method: "POST", body: text }),
@@ -465,8 +539,20 @@ export const api = {
   deployments: () => request<Array<Deployment & { clientId: string; clientName: string }>>("/deployments"),
 
   /** The desk's live event stream: every client this person can see. */
-  events: (onEvent: (event: DeskEvent) => void, withHistory = true) => {
+  /**
+   * The desk's event stream. After a dropped connection (e.g. the server restarted) the browser
+   * reconnects and the server sends its history again, so `onReconnect` lets the caller start afresh.
+   */
+  events: (onEvent: (event: DeskEvent) => void, onReconnect?: () => void, withHistory = true) => {
     const source = new EventSource(`/api/events${withHistory ? "" : "?history=none"}`);
+    let dropped = false;
+    source.onerror = () => {
+      dropped = true;
+    };
+    source.onopen = () => {
+      if (dropped) onReconnect?.();
+      dropped = false;
+    };
     source.onmessage = (message) => onEvent(JSON.parse(message.data));
     return () => source.close();
   },
@@ -491,14 +577,14 @@ export function clientApi(client: string) {
     feed: (limit = 200) => request<StoredMessage[]>(`${c}/feed?limit=${limit}`),
     followUps: () => request<FollowUps>(`${c}/followups`),
     graph: () => request<GraphData>(`${c}/graph`),
-    people: () => request<{ people: Person[]; cast: Array<{ key: string; name: string; role: string }> }>(`${c}/people`),
+    people: () => request<{ people: Person[] }>(`${c}/people`),
     groups: () => request<Group[]>(`${c}/groups`),
     addGroup: (name: string, source: Group["source"]) => send<{ id: string }>("POST", `${c}/groups`, { name, source }),
     renameGroup: (id: string, name: string) => send("PATCH", `${c}/groups/${id}`, { name }),
     removeGroup: (id: string) => request(`${c}/groups/${id}`, { method: "DELETE" }),
     importExport: (groupId: string, text: string) => request<{ messages: number }>(`${c}/groups/${groupId}/import`, { method: "POST", body: text }),
-    say: (sender: string, text: string) => send<{ sender: string }>("POST", `${c}/send`, { sender, text }),
-    sendPrepared: (kind: PreparedKind, sender?: string) => send<{ sender: string }>("POST", `${c}/send`, { kind, sender }),
+    teachers: () => request<TeachersView>(`${c}/teachers`),
+    raiseNextProblem: () => send<{ teacher: string }>("POST", `${c}/teachers/next`),
     reset: () => send("POST", `${c}/reset`),
     ask: (question: string, conversationId?: string) => send<{ conversationId: string; title: string; turn: Turn }>("POST", `${c}/ask`, { question, conversationId }),
     conversations: () => request<ConversationSummary[]>(`${c}/conversations`),

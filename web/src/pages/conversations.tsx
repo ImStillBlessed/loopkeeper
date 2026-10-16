@@ -1,6 +1,7 @@
 import { Waypoints } from "lucide-react";
 import { useState } from "react";
-import { Feed, ReplyBox, Simulator } from "@/components/feed";
+import { Feed, ReplyBox } from "@/components/feed";
+import { TeachersPanel } from "@/components/teachers";
 import { HubComposer, HubFeed, useHubPending } from "@/components/hub-feed";
 import { Empty, ErrorNote, Loading, Page, PageHeader, Panel } from "@/components/page";
 import { api } from "@/lib/api";
@@ -157,7 +158,7 @@ export function ConversationsPage({ clientId }: { clientId?: string }) {
                 <Panel title="Reply" bodyClassName="p-4">
                   <ReplyBox key={selected.id} clientId={selected.id} />
                 </Panel>
-                <Simulator key={selected.id} clientId={selected.id} />
+                <TeachersPanel key={selected.id} clientId={selected.id} />
               </div>
             </div>
           )}

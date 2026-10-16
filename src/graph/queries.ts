@@ -1,4 +1,6 @@
 import type { Graph } from "falkordb";
+import { queryLog, readStatistics } from "./activity.js";
+import { graphName } from "./client.js";
 
 /**
  * Every Cypher query Loopkeeper runs, in one place, each with a stable id.
@@ -8,6 +10,7 @@ import type { Graph } from "falkordb";
  *   GH* GitHub activity (issues, pull requests, commits)
  *   W*  writes done by the ingest pipeline
  *   Q*  reads used by the dashboard and as agent tools
+ *   SIM* the simulated school in the demo
  */
 
 export interface NamedQuery {
@@ -16,7 +19,14 @@ export interface NamedQuery {
   cypher: string;
 }
 
-export const query = (id: string, title: string, cypher: string): NamedQuery => ({ id, title, cypher });
+/** Every named query by id, so the dashboard can show the Cypher behind a query it saw run. */
+export const QUERIES = new Map<string, NamedQuery>();
+
+export const query = (id: string, title: string, cypher: string): NamedQuery => {
+  const named = { id, title, cypher };
+  QUERIES.set(id, named);
+  return named;
+};
 
 /*
  * FalkorDB note: grouping an aggregation (count/collect) by a key that is null (a missing property, or a
@@ -27,14 +37,25 @@ export const query = (id: string, title: string, cypher: string): NamedQuery => 
 /** Statuses that still need someone's attention. */
 export const OPEN_STATUSES = ["open", "in_progress", "possibly_resolved"];
 
-/** Run a named query and return its rows as plain objects keyed by the RETURN aliases. */
+/**
+ * Run a named query and return its rows as plain objects keyed by the RETURN aliases. Each run is
+ * logged with FalkorDB's own statistics, for the Database page.
+ */
 export async function run<T = Record<string, unknown>>(
   graph: Graph,
   named: NamedQuery,
   params: Record<string, unknown> = {},
 ): Promise<T[]> {
-  const reply = await graph.query<T>(named.cypher, { params: params as never });
-  return reply.data ?? [];
+  const started = performance.now();
+  const entry = { id: named.id, title: named.title, graph: graphName(graph), ts: Date.now(), vector: named.cypher.includes("db.idx.vector") };
+  try {
+    const reply = await graph.query<T>(named.cypher, { params: params as never });
+    queryLog.record({ ...entry, ...readStatistics(reply.metadata), totalMs: performance.now() - started, rows: reply.data?.length ?? 0 });
+    return reply.data ?? [];
+  } catch (error) {
+    queryLog.record({ ...entry, engineMs: 0, cached: false, writes: {}, totalMs: performance.now() - started, rows: 0, error: (error as Error).message });
+    throw error;
+  }
 }
 
 // ─── The client, its groups, repos ───────────────────────────────────────────
@@ -191,6 +212,12 @@ export const W7_CHANGE_STATUS_BY_HUMAN = query("W7", "Change an issue's status f
   SET i.status = $to, i.updatedAt = $ts,
       i.resolvedAt = CASE WHEN $to = 'resolved' THEN $ts ELSE i.resolvedAt END`);
 
+export const W20_LIKELY_CODE = query("W20", "Where a ticket most likely lives in the code, and why", `
+  UNWIND $links AS l
+  MATCH (i:Issue {id: $issueId}), (c:CodeFile {id: l.fileId})
+  MERGE (i)-[r:LIKELY_IN]->(c)
+  SET r.functions = l.functions, r.why = l.why, r.confidence = l.confidence, r.readSource = l.readSource, r.at = $ts`);
+
 export const W15_FIRST_RESPONSE = query("W15", "The first time Ednovax staff replied on a ticket (for SLA)", `
   MATCH (i:Issue {id: $issueId})
   WHERE i.firstResponseAt IS NULL
@@ -293,6 +320,26 @@ export const C4_RECENT_ISSUES = query("C4", "Most recently active open issues", 
   ORDER BY i.updatedAt DESC
   LIMIT $limit`);
 
+export const C4B_RECENTLY_RESOLVED = query("C4B", "Issues resolved recently (the school may confirm the fix, or say it still fails)", `
+  MATCH (i:Issue)
+  WHERE i.status = 'resolved' AND i.updatedAt >= $since
+  RETURN i.id AS id
+  ORDER BY i.updatedAt DESC
+  LIMIT $limit`);
+
+export const C14_CODE_NEAR = query("C14", "Code files closest in meaning to a problem (code vector index)", `
+  CALL db.idx.vector.queryNodes('CodeFile', 'embedding', $k, vecf32($embedding))
+  YIELD node, score
+  RETURN node.id AS id, node.path AS path, node.repo AS repo, coalesce(node.symbols, []) AS symbols,
+         coalesce(node.outline, '') AS outline, score AS distance
+  ORDER BY distance`);
+
+export const C15_FEATURE_CODE = query("C15", "Files of a product area whose source has been read", `
+  MATCH (:Feature {key: $featureKey})-[:IMPLEMENTED_IN]->(c:CodeFile)
+  WHERE c.outline IS NOT NULL
+  RETURN c.id AS id, c.path AS path, c.repo AS repo, coalesce(c.symbols, []) AS symbols, c.outline AS outline
+  LIMIT 6`);
+
 export const C5_ISSUE_CARDS = query("C5", "Compact issue summaries for a set of ids", `
   MATCH (i:Issue)
   WHERE i.id IN $ids
@@ -382,6 +429,12 @@ export const Q2_CODE_PATH = query("Q2", "Issue → feature → code files → ow
   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(a:Person)
   RETURN coalesce(f.key, '') AS featureKey, coalesce(f.name, '') AS feature, collect(DISTINCT c.path) AS files,
          collect(DISTINCT d.name) AS codeOwners, coalesce(a.name, '') AS assignee`);
+
+export const Q21_LIKELY_CODE = query("Q21", "Where a ticket most likely lives in the code (read by the model)", `
+  MATCH (:Issue {id: $issueId})-[r:LIKELY_IN]->(c:CodeFile)
+  RETURN c.path AS path, c.repo AS repo, coalesce(r.functions, []) AS functions, coalesce(r.why, '') AS why,
+         coalesce(r.confidence, 0) AS confidence, coalesce(r.readSource, false) AS readSource
+  ORDER BY confidence DESC`);
 
 export const Q3_IMPACT = query("Q3", "Which schools use the affected feature, and which have reported it", `
   MATCH (i:Issue {id: $issueId})-[:AFFECTS]->(f:Feature)<-[:USES]-(s:School)
@@ -529,6 +582,11 @@ export const IX1_FILES = query("IX1", "Code files of a repository", `
   UNWIND $files AS f
   MERGE (c:CodeFile {id: f.id})
   SET c.path = f.path, c.repo = $repo, c.language = f.language`);
+
+export const IX6_CODE_CONTENT = query("IX6", "What each file defines, and its embedding for the code vector index", `
+  UNWIND $files AS f
+  MATCH (c:CodeFile {id: f.id})
+  SET c.symbols = f.symbols, c.routes = f.routes, c.outline = f.outline, c.embedding = vecf32(f.embedding), c.readAt = $ts`);
 
 export const IX2_FEATURES = query("IX2", "Product features found in a repository", `
   UNWIND $features AS f
@@ -739,6 +797,16 @@ export const RP2_FILES = query("RP2", "Code files behind those features", `
   MATCH (feature:Feature {key: f.feature})
   MERGE (feature)-[:IMPLEMENTED_IN]->(c)`);
 
+export const RP4_CODE_CONTENT = query("RP4", "What each file defines, with its embedding, for this client's code search", `
+  UNWIND $files AS f
+  MERGE (c:CodeFile {id: f.id})
+  SET c.path = f.path, c.repo = f.repo, c.symbols = f.symbols, c.routes = f.routes, c.outline = f.outline,
+      c.embedding = vecf32(f.embedding)`);
+
+export const RP5_FORGET_REPO = query("RP5", "Forget a repository's files (it was disconnected or replaced)", `
+  MATCH (c:CodeFile {repo: $repo})
+  DETACH DELETE c`);
+
 export const RP3_OWNERS = query("RP3", "Who owns those files", `
   UNWIND $owners AS o
   MERGE (p:Person {id: o.id})
@@ -763,3 +831,35 @@ export const I3_LAST_CLIENT_MESSAGE = query("I3", "When the client last wrote an
   MATCH (p:Person)-[:SENT]->(m:Message)
   WHERE NOT p.role IN ['developer', 'support']
   RETURN max(m.ts) AS lastMessage`);
+
+// ─── The simulated school (demo): teachers played by the model ──────────────
+
+export const SIM1_SAVE = query("SIM1", "Save where the simulated teachers are", `
+  MERGE (s:Simulation {id: 'teachers'})
+  SET s.stateJson = $stateJson`);
+
+export const SIM2_LOAD = query("SIM2", "Where the simulated teachers are", `
+  MATCH (s:Simulation {id: 'teachers'})
+  RETURN s.stateJson AS stateJson`);
+
+export const SIM3_TICKET_OF_MESSAGE = query("SIM3", "The ticket a message reported or joined (after any merge), with its status", `
+  MATCH (m:Message {id: $messageId})-[:EVIDENCE_OF]->(i:Issue)
+  OPTIONAL MATCH (i)-[:DUPLICATE_OF]->(c:Issue)
+  RETURN coalesce(c.id, i.id) AS id, coalesce(c.status, i.status) AS status, coalesce(c.title, i.title) AS title
+  LIMIT 1`);
+
+// ─── The database itself (for the Database page) ────────────────────────────
+
+export const DB1_LABELS = query("DB1", "How many nodes of each label", `
+  MATCH (n)
+  RETURN coalesce(labels(n)[0], '') AS label, count(n) AS count
+  ORDER BY count DESC`);
+
+export const DB2_RELATIONSHIPS = query("DB2", "How many relationships of each type", `
+  MATCH ()-[r]->()
+  RETURN type(r) AS type, count(r) AS count
+  ORDER BY count DESC`);
+
+export const DB3_INDEXES = query("DB3", "The graph's indexes (range and vector)", `
+  CALL db.indexes() YIELD label, properties, types, options, entitytype, status
+  RETURN label, properties, types, options, entitytype AS entity, status`);

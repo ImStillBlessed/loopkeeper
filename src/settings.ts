@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { config } from "./config.js";
-import { getFalkorDB } from "./graph/client.js";
+import { selectGraph } from "./graph/client.js";
 import { ensureSchema } from "./graph/schema.js";
 
 /**
@@ -44,7 +44,7 @@ export function onSettingsChange(listener: () => void): void {
 }
 
 export async function loadSettings(): Promise<void> {
-  const graph = (await getFalkorDB()).selectGraph(SYSTEM_GRAPH);
+  const graph = await selectGraph(SYSTEM_GRAPH);
   await ensureSchema(graph);
   const reply = await graph.query<{ s: { properties: Record<string, string> } }>(`MERGE (s:Settings {id: 'app'}) RETURN s`);
   const properties = reply.data?.[0]?.s.properties ?? {};
@@ -63,7 +63,7 @@ export async function saveSettings(changes: Partial<Record<SettingField, string>
     const trimmed = value.trim();
     values[field] = trimmed ? (SECRET_FIELDS.includes(field as SecretField) ? encrypt(trimmed) : trimmed) : null;
   }
-  const graph = (await getFalkorDB()).selectGraph(SYSTEM_GRAPH);
+  const graph = await selectGraph(SYSTEM_GRAPH);
   await graph.query(`MERGE (s:Settings {id: 'app'}) SET s += $values`, { params: { values } as never });
   await loadSettings();
   listeners.forEach((listener) => listener());

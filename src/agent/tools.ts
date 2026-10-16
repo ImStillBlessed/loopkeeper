@@ -19,7 +19,10 @@ import {
   GH9_CODE_ACTIVITY,
   run,
   type NamedQuery,
+  C14_CODE_NEAR,
+  Q21_LIKELY_CODE,
 } from "../graph/queries.js";
+import { readSource } from "../github/api.js";
 import { openGithubIssue } from "../github/issues.js";
 import { X8_PATTERN_FOR_TICKET } from "../graph/hq-queries.js";
 import type { Llm } from "../llm/llm.js";
@@ -121,15 +124,17 @@ export const TOOLS: Tool[] = [
       const evidence = await run<{ id: string; ts: number }>(graph, Q12_EVIDENCE, { issueId });
       const [code] = await run<{ featureKey: string | null; files: string[] }>(graph, Q2_CODE_PATH, { issueId });
       const history = await run<{ messageId: string | null; at: number }>(graph, Q8_HISTORY, { issueId });
+      const likelyCode = await run(graph, Q21_LIKELY_CODE, { issueId });
       return {
         data: {
           issue,
           messages: evidence.map((m) => ({ ...m, ts: formatLagos(m.ts) })),
           code,
+          likelyCode,
           history: history.map((h) => ({ ...h, at: formatLagos(h.at) })),
         },
         nodeIds: ids([issueId, code?.featureKey], code?.files ?? [], evidence.map((m) => m.id)),
-        queries: [Q13_ISSUE, Q12_EVIDENCE, Q2_CODE_PATH, Q8_HISTORY],
+        queries: [Q13_ISSUE, Q12_EVIDENCE, Q2_CODE_PATH, Q21_LIKELY_CODE, Q8_HISTORY],
       };
     },
   ),
@@ -281,6 +286,35 @@ TOOLS.push(
         ? { otherClients: pattern.otherClients, problem: pattern.title, theirStatuses: pattern.statuses, fixes: pattern.pullRequests.filter((pr) => pr.number !== null) }
         : { otherClients: 0 };
       return { data, nodeIds: [issueId], queries: [X8_PATTERN_FOR_TICKET] };
+    },
+  ),
+  tool(
+    "find_code",
+    "Search the product's code by meaning (the code vector index): which files and functions deal with something, e.g. 'saving scores' or 'report card averages'. Returns paths, what each file defines and an outline. Only files whose source was read when the repo was connected are searchable.",
+    { query: { type: "string" } },
+    ["query"],
+    async (args, { graph, llm }) => {
+      const [embedding] = await llm.embed([String(args.query)]);
+      const files = await run<{ id: string; path: string; repo: string; symbols: string[]; outline: string }>(graph, C14_CODE_NEAR, { embedding, k: 6 });
+      return {
+        data: files.length ? files.map(({ path, repo, symbols, outline }) => ({ path, repo, defines: symbols.slice(0, 20), outline })) : "No code has been read yet: connect the product's repository first.",
+        nodeIds: files.map((f) => f.id),
+        queries: [C14_CODE_NEAR],
+      };
+    },
+  ),
+  tool(
+    "read_code",
+    "Read a source file from the product's GitHub repository, to see what the code really does before naming a cause. Use a path from find_code or an issue's code files.",
+    { path: { type: "string" }, repo: { type: "string", description: "owner/name; defaults to this client's repositories, tried in order" } },
+    ["path"],
+    async (args, { repos }) => {
+      const path = String(args.path).replace(/^\/+/, "");
+      for (const repo of str(args.repo) ? [String(args.repo)] : repos) {
+        const source = await readSource(repo, path).catch(() => undefined);
+        if (source) return { data: { repo, path, source: source.slice(0, 12_000), truncated: source.length > 12_000 }, nodeIds: [], queries: [] };
+      }
+      return { data: `Couldn't read ${path}: no GitHub access, or no such file in ${repos.join(", ") || "any connected repository"}.`, nodeIds: [], queries: [] };
     },
   ),
   tool(

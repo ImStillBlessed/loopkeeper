@@ -1,4 +1,4 @@
-import { ArrowRight, Building2, Code2, Crown, Headset, KeyRound, MessagesSquare, ShieldCheck, Waypoints } from "lucide-react";
+import { ArrowRight, Building2, Code2, Crown, Headset, KeyRound, MessagesSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Flourish, Logo, Wordmark } from "@/components/brand";
 import { ErrorNote } from "@/components/page";
@@ -11,8 +11,8 @@ import { ROLE, type Tone } from "@/lib/palette";
 import { cn } from "@/lib/utils";
 
 const ROLES: Record<Role, { sees: string; icon: typeof Crown; tone: Tone }> = {
-  lead: { sees: "Sees every client", icon: Headset, tone: "blue" },
-  agent: { sees: "Sees only her two schools", icon: MessagesSquare, tone: "green" },
+  lead: { sees: "Sees every client and the code", icon: Headset, tone: "blue" },
+  agent: { sees: "Sees only their own clients", icon: MessagesSquare, tone: "green" },
   developer: { sees: "Sees tickets and code", icon: Code2, tone: "violet" },
   admin: { sees: "Sees everything, incl. keys", icon: Crown, tone: "amber" },
 };
@@ -24,7 +24,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [demo, setDemo] = useState<{ password: string; accounts: Array<{ name: string; email: string; role: Role }> }>();
+  const [demo, setDemo] = useState<{ password: string; accounts: Array<{ name: string; email: string; role: Role; title: string }> }>();
 
   useEffect(() => {
     api.demoAccounts().then(setDemo, () => undefined);
@@ -60,8 +60,8 @@ export function LoginPage() {
           </p>
           <div className="mt-10 grid grid-cols-3 gap-3">
             {[
-              { icon: Building2, value: "4", label: "Clients" },
-              { icon: Waypoints, value: "1", label: "Shared problem" },
+              { icon: Building2, value: "1", label: "School live" },
+              { icon: Sparkles, value: "4", label: "Teachers played by AI" },
               { icon: ShieldCheck, value: "0", label: "Data leaks" },
             ].map((stat) => (
               <div key={stat.label} className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
@@ -82,7 +82,7 @@ export function LoginPage() {
 
           <form onSubmit={submit} className="card mt-8 flex flex-col gap-5 p-6">
             <Field label="Email">
-              <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@ednovax.demo" required />
+              <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@ednovax.com" required />
             </Field>
             <Field label="Password">
               <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -118,7 +118,7 @@ export function LoginPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-2">
                             <span className="font-semibold">{account.name}</span>
-                            <span className="text-[12.5px] text-muted">{ROLE[account.role]}</span>
+                            <span className="text-[12.5px] text-muted">{account.title || ROLE[account.role]}</span>
                           </div>
                           <div className="truncate text-[13px] text-muted">{role.sees}</div>
                         </div>

@@ -1,7 +1,7 @@
 import type { Graph } from "falkordb";
-import { castOf, CAST, CLIENTS, type ClientSeed } from "../../data/synthetic/cast.js";
+import { DEMO_PASSWORD, SLA_POLICIES, STAFF } from "../../data/demo/staff.js";
+import type { ClientSeed } from "../../data/synthetic/cast.js";
 import { CODE_FILES, DEMO_REPOS, FEATURES, PRODUCTS } from "../../data/synthetic/product.js";
-import { DEMO_PASSWORD, SLA_POLICIES, STAFF } from "../../data/synthetic/staff.js";
 import { hashPassword } from "../auth.js";
 import {
   H10_STAFF_SEED,
@@ -17,6 +17,7 @@ import {
   HD1_SET_DEPLOYMENTS,
 } from "../graph/hq-queries.js";
 import { P1_CLIENT, P3_GROUP, run, S2_SCHOOLS, S3_PEOPLE, S4_WORKS_AT } from "../graph/queries.js";
+import { getFalkorDB } from "../graph/client.js";
 import { ensureSchema } from "../graph/schema.js";
 import { personId } from "../ingest/ids.js";
 import { copyProductReference } from "./replicate.js";
@@ -29,13 +30,29 @@ export async function resetGraph(graph: Graph): Promise<void> {
   await graph.delete().catch(() => undefined);
 }
 
+/** Deletes every graph the app keeps (HQ, clients, the hub, Ask). Settings live elsewhere and stay. */
+export async function resetAllGraphs(): Promise<void> {
+  const db = await getFalkorDB();
+  for (const name of await db.list()) if (name.startsWith("lk_")) await resetGraph(db.selectGraph(name));
+}
+
+/** Someone in a client's WhatsApp group when it is set up. */
+export interface GroupMember {
+  name: string;
+  role: string;
+  /** How WhatsApp shows them, if not by name (an unsaved number). */
+  whatsappLabel?: string;
+  /** Works at the client (a teacher), rather than at Ednovax. */
+  atClient: boolean;
+}
+
 /**
  * HQ, the first time the app starts: Ednovax's products with their features and code,
  * the staff who log in, SLA policies, and the client registry.
  */
-export async function seedHq(hq: Graph, salt: string): Promise<void> {
+export async function seedHq(hq: Graph, salt: string, clients: ClientSeed[]): Promise<void> {
   await ensureSchema(hq);
-  const castPersonId = (castKey: string) => personId(CAST.find((m) => m.key === castKey)!.whatsappLabel, salt);
+  const ownerName = (staffId: string) => STAFF.find((s) => s.id === staffId)!.name;
 
   await run(hq, H1_PRODUCTS_SEED, { products: PRODUCTS });
   await run(hq, H2_FEATURES_SEED, { features: FEATURES });
@@ -48,8 +65,8 @@ export async function seedHq(hq: Graph, salt: string): Promise<void> {
         path: f.path,
         repo,
         feature: f.feature,
-        ownerId: castPersonId(f.owner),
-        ownerName: CAST.find((m) => m.key === f.owner)!.name,
+        ownerId: personId(ownerName(f.owner), salt),
+        ownerName: ownerName(f.owner),
       })),
     });
     await run(hq, H4_IMPORTS_SEED, { imports: files.flatMap((f) => (f.imports ?? []).map((to) => ({ from: id(f.path), to: id(to) }))) });
@@ -57,15 +74,15 @@ export async function seedHq(hq: Graph, salt: string): Promise<void> {
 
   await run(hq, H10_STAFF_SEED, { staff: STAFF.map((s) => ({ ...s, passwordHash: hashPassword(DEMO_PASSWORD) })) });
   await run(hq, H13_SLA_SEED, { policies: SLA_POLICIES });
-  for (const client of CLIENTS) await registerClient(hq, client);
+  for (const client of clients) await registerClient(hq, client);
   await run(hq, H22_MARK_SEED_VERSION, { version: DEMO_DATA_VERSION });
 }
 
 /**
- * Bumped whenever the demo's products, clients or deployments change shape. On startup, demo data
- * from an older version is rebuilt (HQ and the demo clients' graphs); real clients are not touched.
+ * Bumped whenever the demo's products, clients, staff or deployments change shape. On startup, a
+ * database seeded with an older version starts again from scratch (only the settings are kept).
  */
-export const DEMO_DATA_VERSION = 2;
+export const DEMO_DATA_VERSION = 3;
 
 /** Adds or updates a client in the HQ registry. */
 export async function registerClient(hq: Graph, client: Omit<ClientSeed, "group" | "aliases" | "deployments"> & Partial<Pick<ClientSeed, "aliases" | "deployments">>): Promise<void> {
@@ -80,7 +97,13 @@ export async function registerClient(hq: Graph, client: Omit<ClientSeed, "group"
  * A client's own graph: the client, its school (or centre), its WhatsApp group with the people in it,
  * and a copy of the product reference for the products it uses.
  */
-export async function seedClientGraph(hq: Graph, graph: Graph, client: Pick<ClientSeed, "id" | "name" | "city" | "products"> & { group?: string }, salt: string): Promise<void> {
+export async function seedClientGraph(
+  hq: Graph,
+  graph: Graph,
+  client: Pick<ClientSeed, "id" | "name" | "city" | "products"> & { group?: string },
+  salt: string,
+  members: GroupMember[] = [],
+): Promise<void> {
   await ensureSchema(graph);
   const ts = Date.now();
   await run(graph, P1_CLIENT, { id: client.id, name: client.name, ts });
@@ -89,11 +112,9 @@ export async function seedClientGraph(hq: Graph, graph: Graph, client: Pick<Clie
   if (client.group) {
     const groupId = groupIdOf(client.id);
     await run(graph, P3_GROUP, { id: groupId, name: client.group, source: "simulator", ts });
-    const people = castOf(client.id);
-    await run(graph, S3_PEOPLE, { groupId, people: people.map((m) => ({ id: personId(m.whatsappLabel, salt), name: m.name, role: m.role })) });
-    await run(graph, S4_WORKS_AT, {
-      links: people.filter((m) => m.clientId).map((m) => ({ personId: personId(m.whatsappLabel, salt), schoolId: client.id })),
-    });
+    const idOf = (m: GroupMember) => personId(m.whatsappLabel ?? m.name, salt);
+    await run(graph, S3_PEOPLE, { groupId, people: members.map((m) => ({ id: idOf(m), name: m.name, role: m.role })) });
+    await run(graph, S4_WORKS_AT, { links: members.filter((m) => m.atClient).map((m) => ({ personId: idOf(m), schoolId: client.id })) });
   }
 
   await copyProductReference(hq, graph, client.products);

@@ -2,14 +2,19 @@ import type { Graph } from "falkordb";
 import { posix } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { HG1_REPO, HG3_LINK_FEATURES_TO_PRODUCT } from "../graph/hq-queries.js";
-import { IX1_FILES, IX2_FEATURES, IX3_FEATURE_FILES, IX4_OWNERS, IX5_IMPORTS, P7_REPO_MARK, run } from "../graph/queries.js";
+import { IX1_FILES, IX2_FEATURES, IX3_FEATURE_FILES, IX4_OWNERS, IX5_IMPORTS, IX6_CODE_CONTENT, P7_REPO_MARK, run } from "../graph/queries.js";
+import { embedLocally } from "../llm/embeddings.js";
 import { gh, normaliseRepo, readRepoFile } from "./api.js";
+import { readCode } from "./code-reading.js";
 
 const CODE_FILE = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|php|cs|swift|vue|svelte)$/;
 const SKIPPED_DIRS = /(^|\/)(node_modules|dist|build|out|\.next|vendor|coverage|\.git|__snapshots__)\//;
 const PARSES_IMPORTS = /\.(tsx?|jsx?|mjs|cjs)$/;
 const MAX_FILES = 600;
-const MAX_IMPORT_FILES = 150;
+/** Files whose source is read (outline, imports, embedding). Larger files are usually generated. */
+const MAX_READ_FILES = 400;
+const MAX_READ_BYTES = 200_000;
+const EMBED_BATCH = 32;
 /** Folder names that hold code rather than describe a product area. */
 const ROOT_FOLDERS = new Set(["src", "app", "apps", "lib", "libs", "pages", "components", "server", "client", "api", "routes", "packages", "internal", "pkg", "cmd", "web", "frontend", "backend", "source"]);
 
@@ -17,6 +22,8 @@ export interface IndexResult {
   repo: string;
   product: string;
   files: number;
+  /** Files whose source was read and embedded. */
+  read: number;
   features: number;
   owners: number;
   imports: number;
@@ -33,21 +40,25 @@ interface FeatureSpec {
 /**
  * Reads a GitHub repository (never writes to it) and adds its code to a product in the HQ graph:
  *   files → CodeFile, imports → IMPORTS, features.yaml (or folders) → Feature + IMPLEMENTED_IN,
- *   CODEOWNERS → developers who OWN files. That is what lets "teacher message → code → owner" work.
+ *   CODEOWNERS → developers who OWN files, and each file's source → what it defines (functions,
+ *   classes, routes) plus an embedding in a vector index. That is what lets "teacher message → code
+ *   → owner" work, and lets a new ticket find the files most likely involved.
+ * `progress` hears each step, for the dashboard.
  */
-export async function indexRepository(graph: Graph, repoInput: string, product: string): Promise<IndexResult> {
+export async function indexRepository(graph: Graph, repoInput: string, product: string, progress: (step: string) => void = () => undefined): Promise<IndexResult> {
   const repo = normaliseRepo(repoInput);
   const info = await gh<{ default_branch: string; html_url: string }>(`/repos/${repo}`);
   const branch = info.default_branch;
   await run(graph, HG1_REPO, { id: repo, url: info.html_url, defaultBranch: branch, product, ts: Date.now() });
 
-  const tree = await gh<{ tree: Array<{ path: string; type: string; sha: string }> }>(`/repos/${repo}/git/trees/${branch}?recursive=1`);
+  const tree = await gh<{ tree: Array<{ path: string; type: string; sha: string; size?: number }> }>(`/repos/${repo}/git/trees/${branch}?recursive=1`);
   const files = tree.tree
     .filter((entry) => entry.type === "blob" && CODE_FILE.test(entry.path) && !SKIPPED_DIRS.test(entry.path) && !entry.path.endsWith(".d.ts"))
     .slice(0, MAX_FILES);
   const fileId = (path: string) => `${repo}:${path}`;
   const paths = new Set(files.map((f) => f.path));
 
+  progress(`Found ${files.length} code files in ${repo}`);
   await run(graph, IX1_FILES, {
     repo,
     files: files.map((f) => ({ id: fileId(f.path), path: f.path, language: posix.extname(f.path).slice(1) })),
@@ -72,14 +83,38 @@ export async function indexRepository(graph: Graph, repoInput: string, product: 
   );
   await run(graph, IX4_OWNERS, { owners });
 
-  // Imports between files (JavaScript/TypeScript only, capped to stay within API limits).
-  const imports = await readImports(repo, files.filter((f) => PARSES_IMPORTS.test(f.path)).slice(0, MAX_IMPORT_FILES), paths);
+  // The source of each file: what it defines, what it imports, and an embedding of both.
+  const readable = files.filter((f) => (f.size ?? 0) <= MAX_READ_BYTES).slice(0, MAX_READ_FILES);
+  progress(`Reading the source of ${readable.length} files`);
+  const sources = await readSources(repo, readable);
+  const imports = sources.flatMap(({ path, source }) => (PARSES_IMPORTS.test(path) ? importsOf(path, source, paths) : []));
   await run(graph, IX5_IMPORTS, { imports: imports.map((i) => ({ from: fileId(i.from), to: fileId(i.to) })) });
+
+  progress(`Embedding ${sources.length} files into the code vector index`);
+  const outlines = sources.map(({ path, source }) => ({ path, ...readCode(path, source) }));
+  for (let start = 0; start < outlines.length; start += EMBED_BATCH) {
+    const batch = outlines.slice(start, start + EMBED_BATCH);
+    const embeddings = await embedLocally(batch.map((o) => o.searchText));
+    await run(graph, IX6_CODE_CONTENT, {
+      ts: Date.now(),
+      files: batch.map((o, i) => ({ id: fileId(o.path), symbols: o.symbols, routes: o.routes, outline: o.outline, embedding: embeddings[i] })),
+    });
+  }
 
   const featureSource = declared ? "features.yaml" : "folders";
   await run(graph, P7_REPO_MARK, { id: repo, indexedAt: Date.now(), syncedAt: null, featureSource });
+  progress(`Done: ${files.length} files, ${outlines.length} read, ${imports.length} imports`);
 
-  return { repo, product, files: files.length, features: features.length, owners: new Set(owners.map((o) => o.handle)).size, imports: imports.length, featureSource };
+  return {
+    repo,
+    product,
+    files: files.length,
+    read: outlines.length,
+    features: features.length,
+    owners: new Set(owners.map((o) => o.handle)).size,
+    imports: imports.length,
+    featureSource,
+  };
 }
 
 /**
@@ -155,16 +190,22 @@ function codeownersMatch(pattern: string, path: string): boolean {
 const IMPORT = /(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|import\s*['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)|import\(\s*['"]([^'"]+)['"]\s*\)/g;
 const EXTENSIONS = ["", ".ts", ".tsx", ".js", ".jsx", ".mjs", "/index.ts", "/index.tsx", "/index.js"];
 
-async function readImports(repo: string, files: Array<{ path: string; sha: string }>, known: Set<string>): Promise<Array<{ from: string; to: string }>> {
-  const edges: Array<{ from: string; to: string }> = [];
+/** The source of each file (files GitHub won't return are skipped). */
+async function readSources(repo: string, files: Array<{ path: string; sha: string }>): Promise<Array<{ path: string; source: string }>> {
+  const sources: Array<{ path: string; source: string }> = [];
   await inParallel(files, 8, async (file) => {
     const blob = await gh<{ content: string }>(`/repos/${repo}/git/blobs/${file.sha}`);
-    const source = Buffer.from(blob.content, "base64").toString("utf8");
-    for (const match of source.matchAll(IMPORT)) {
-      const target = resolveImport(file.path, match[1] ?? match[2] ?? match[3] ?? match[4], known);
-      if (target && target !== file.path) edges.push({ from: file.path, to: target });
-    }
+    sources.push({ path: file.path, source: Buffer.from(blob.content, "base64").toString("utf8") });
   });
+  return sources;
+}
+
+function importsOf(path: string, source: string, known: Set<string>): Array<{ from: string; to: string }> {
+  const edges: Array<{ from: string; to: string }> = [];
+  for (const match of source.matchAll(IMPORT)) {
+    const target = resolveImport(path, match[1] ?? match[2] ?? match[3] ?? match[4], known);
+    if (target && target !== path) edges.push({ from: path, to: target });
+  }
   return edges;
 }
 

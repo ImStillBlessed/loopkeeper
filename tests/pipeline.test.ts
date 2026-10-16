@@ -1,6 +1,6 @@
 import type { Graph } from "falkordb";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CAST, CLIENTS, type ClientSeed } from "../data/synthetic/cast.js";
+import { CAST, castOf, CLIENTS, type ClientSeed } from "../data/synthetic/cast.js";
 import { buildChat, formatExport } from "../data/synthetic/generator.js";
 import { TOOLS_BY_NAME } from "../src/agent/tools.js";
 import { recordPullRequest, type ClientChannel, type GithubRouter } from "../src/github/activity.js";
@@ -79,12 +79,13 @@ beforeAll(async () => {
   const db = await getFalkorDB();
   hq = db.selectGraph("lk_test_hq");
   await resetGraph(hq);
-  await seedHq(hq, SALT);
+  await seedHq(hq, SALT, CLIENTS);
 
   for (const client of CLIENTS) {
     const graph = db.selectGraph(`lk_test_client_${client.id}`);
     await resetGraph(graph);
-    await seedClientGraph(hq, graph, client, SALT);
+    const members = castOf(client.id).map((m) => ({ name: m.name, role: m.role, whatsappLabel: m.whatsappLabel, atClient: Boolean(m.clientId) }));
+    await seedClientGraph(hq, graph, client, SALT, members);
     graphs.set(client.id, graph);
   }
 
@@ -137,7 +138,7 @@ describe("each client in its own graph", () => {
     const [path] = await run<{ feature: string; files: string[]; codeOwners: string[] }>(graphOf("royal_academy"), Q2_CODE_PATH, { issueId: ticket("royal_academy", /score/i).id });
     expect(path.feature).toBe("Score submission");
     expect(path.files).toContain("lib/scores/submit.ts");
-    expect(path.codeOwners).toEqual(["Tunde Bakare"]);
+    expect(path.codeOwners).toEqual(["Blessed Oigbochie"]);
   });
 });
 

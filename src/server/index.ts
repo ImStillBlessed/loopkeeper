@@ -2,13 +2,14 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { existsSync } from "node:fs";
-import { DEMO_PASSWORD, STAFF } from "../../data/synthetic/staff.js";
+import { DEMO_PASSWORD, STAFF } from "../../data/demo/staff.js";
 import { currentUser, logIn, logOut, requireLogin, requireRole, type StaffUser } from "../auth.js";
 import { config } from "../config.js";
 import { githubConfigured } from "../github/api.js";
 import { getWorld } from "../runtime/world.js";
 import { describeSettings, loadSettings, saveSettings, setting, type SettingField } from "../settings.js";
 import { clientRoutes } from "./client-routes.js";
+import { dbRoutes } from "./db-routes.js";
 import { githubWebhook } from "./github-webhook.js";
 import { whatsappWebhook } from "./whatsapp-webhook.js";
 import { hqRoutes } from "./hq-routes.js";
@@ -31,15 +32,13 @@ api.post("/auth/logout", (c) => {
   return c.json({ ok: true });
 });
 
-api.get("/auth/me", (c) => {
-  const user = currentUser(c);
+api.get("/auth/me", async (c) => {
+  const user = await currentUser(c);
   return user ? c.json(user) : c.json({ error: "Not logged in" }, 401);
 });
 
-/** The demo accounts, shown on the login screen so judges can try every role. */
-api.get("/auth/demo-accounts", (c) =>
-  c.json({ password: DEMO_PASSWORD, accounts: STAFF.filter((s) => ["stf_admin", "stf_lead", "stf_ngozi", "stf_tunde"].includes(s.id)).map(({ name, email, role }) => ({ name, email, role })) }),
-);
+/** The demo accounts, shown on the login screen so judges can sign in. */
+api.get("/auth/demo-accounts", (c) => c.json({ password: DEMO_PASSWORD, accounts: STAFF.map(({ name, email, role, title }) => ({ name, email, role, title })) }));
 
 api.route("/github/webhook", githubWebhook);
 api.route("/whatsapp/webhook", whatsappWebhook);
@@ -48,8 +47,8 @@ api.route("/whatsapp/webhook", whatsappWebhook);
 
 api.use("*", requireLogin);
 
-/** What's configured, so the dashboard and CLI can explain what's missing. */
-api.get("/status", (c) => c.json({ hasApiKey: Boolean(setting("anthropicApiKey")), githubConfigured: githubConfigured() }));
+/** What's configured, so the dashboard and CLI can explain what's missing, and where the desk is reachable. */
+api.get("/status", (c) => c.json({ hasApiKey: Boolean(setting("anthropicApiKey")), githubConfigured: githubConfigured(), publicUrl: publicUrl(c) }));
 
 api.get("/settings", (c) => c.json(describeSettings()));
 
@@ -59,6 +58,7 @@ api.put("/settings", requireRole("admin"), async (c) => {
 });
 
 api.route("/clients/:client", clientRoutes);
+api.route("/db", dbRoutes);
 api.route("/", hqRoutes);
 
 api.onError((error, c) => {
@@ -68,6 +68,14 @@ api.onError((error, c) => {
 });
 
 app.route("/api", api);
+
+/** PUBLIC_URL from .env, or else the address this request came in on (through a proxy or tunnel too). */
+function publicUrl(c: { req: { header: (name: string) => string | undefined; url: string } }): string {
+  if (config.publicUrl) return config.publicUrl;
+  const host = (c.req.header("x-forwarded-host") ?? c.req.header("host"))?.split(",")[0].trim();
+  const proto = c.req.header("x-forwarded-proto")?.split(",")[0] ?? new URL(c.req.url).protocol.replace(":", "");
+  return host ? `${proto}://${host}` : new URL(c.req.url).origin;
+}
 
 // In production the built dashboard is served from the same process.
 if (existsSync("web/dist")) {

@@ -42,4 +42,9 @@ export const config = {
     pollSeconds: Number(env("GITHUB_POLL_SECONDS", "60")),
   },
   port: Number(env("PORT", "8787")),
+  /**
+   * Where the desk is reachable from outside, e.g. https://desk.ednovax.com. Webhook URLs for GitHub
+   * and WhatsApp are built from it. Unset, the address the browser used is shown instead.
+   */
+  publicUrl: env("PUBLIC_URL", "").replace(/\/+$/, ""),
 } as const;

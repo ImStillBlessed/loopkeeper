@@ -1,5 +1,5 @@
 import type { Graph } from "falkordb";
-import { getFalkorDB } from "../graph/client.js";
+import { selectGraph } from "../graph/client.js";
 import {
   CV1_CREATE_CONVERSATION,
   CV2_SAVE_TURNS,
@@ -58,7 +58,7 @@ export const DESK_GRAPH = "lk_desk";
 
 /** The staff-only graph for conversations across clients. */
 export async function deskGraph(): Promise<Graph> {
-  const graph = (await getFalkorDB()).selectGraph(DESK_GRAPH);
+  const graph = await selectGraph(DESK_GRAPH);
   await graph.query("CREATE INDEX FOR (c:Conversation) ON (c.id)").catch(() => undefined);
   return graph;
 }

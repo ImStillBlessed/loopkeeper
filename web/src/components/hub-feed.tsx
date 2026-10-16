@@ -1,4 +1,4 @@
-import { Clock, Play, Send, Upload } from "lucide-react";
+import { Clock, Send, Upload } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type HubEntry } from "@/lib/api";
 import { useUser } from "@/lib/auth";
@@ -197,14 +197,11 @@ export function HubComposer() {
           }
         }}
         rows={3}
-        placeholder="Write in the hub as you. Try: Mrs Okafor (Royal Academy): results won't load"
+        placeholder="Write in the hub as you. Try: Mrs Igbinoba (Henson): results won't load"
       />
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={send} disabled={!text.trim()}>
           <Send /> Send to hub
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => run(async () => (await api.playHubStory(), "Playing a hub morning…"))}>
-          <Play /> Play a hub morning (demo)
         </Button>
         <Button size="sm" variant="outline" onClick={() => file.current?.click()}>
           <Upload /> Import hub chat (.txt)

@@ -1,10 +1,10 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import type { StaffRole } from "../data/synthetic/staff.js";
+import type { StaffRole } from "../data/demo/staff.js";
 import { config } from "./config.js";
 import { getHqGraph } from "./graph/client.js";
-import { H11_STAFF_BY_EMAIL, H18_CLIENTS } from "./graph/hq-queries.js";
+import { H11_STAFF_BY_EMAIL, H18_CLIENTS, H23_STAFF_EXISTS } from "./graph/hq-queries.js";
 import { run } from "./graph/queries.js";
 
 /**
@@ -17,6 +17,8 @@ export interface StaffUser {
   name: string;
   email: string;
   role: StaffRole;
+  /** Their job, e.g. "Tech lead". */
+  title: string;
 }
 
 const COOKIE = "lk_session";
@@ -57,7 +59,7 @@ export async function logIn(c: Context, email: string, password: string): Promis
   const [row] = await run<StaffUser & { passwordHash: string }>(await getHqGraph(), H11_STAFF_BY_EMAIL, { email: email.trim().toLowerCase() });
   if (!row || !passwordMatches(password, row.passwordHash)) return undefined;
 
-  const user: StaffUser = { id: row.id, name: row.name, email: row.email, role: row.role };
+  const user: StaffUser = { id: row.id, name: row.name, email: row.email, role: row.role, title: row.title };
   setCookie(c, COOKIE, sessionToken(user), { httpOnly: true, sameSite: "Lax", path: "/", maxAge: SESSION_HOURS * 3600 });
   return user;
 }
@@ -66,14 +68,17 @@ export function logOut(c: Context): void {
   deleteCookie(c, COOKIE, { path: "/" });
 }
 
-export function currentUser(c: Context): StaffUser | undefined {
+/** The signed-in staff member, if the session is valid and their account still exists (a reset removes accounts). */
+export async function currentUser(c: Context): Promise<StaffUser | undefined> {
   const token = getCookie(c, COOKIE);
-  return token ? readToken(token) : undefined;
+  const user = token ? readToken(token) : undefined;
+  if (!user) return undefined;
+  return (await run(await getHqGraph(), H23_STAFF_EXISTS, { id: user.id })).length ? user : undefined;
 }
 
-/** Every API route except login and the GitHub webhook needs a logged-in staff member. */
+/** Every API route except login and the webhooks needs a logged-in staff member. */
 export const requireLogin: MiddlewareHandler<{ Variables: { user: StaffUser } }> = async (c, next) => {
-  const user = currentUser(c);
+  const user = await currentUser(c);
   if (!user) return c.json({ error: "Please log in" }, 401);
   c.set("user", user);
   await next();

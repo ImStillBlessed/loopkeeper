@@ -40,21 +40,32 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api.live().then(setState, () => undefined);
+    const reconnected = () => {
+      setEvents([]);
+      setVersion((v) => v + 1);
+    };
     return api.events((event) => {
       setEvents((all) => (all.length > 1500 ? [...all.slice(-1000), event] : [...all, event]));
-      if (event.kind === "live") setState({ running: event.running, clock: event.clock });
+      if (event.kind === "live") {
+        setState({ running: event.running, clock: event.clock });
+        bumpSoon();
+      }
       if (event.kind === "message") setState((s) => ({ ...s, clock: Math.max(s.clock, Date.parse(event.message.ts)) }));
       if (event.kind === "activity" || event.kind === "bot" || event.kind === "hub" || (event.kind === "message" && event.message.relevant)) bumpSoon();
       if (event.kind === "run") {
         setError(event.state === "failed" ? event.error : undefined);
         if (event.state !== "started") bumpSoon();
       }
-    });
+    }, reconnected);
   }, [bumpSoon]);
 
-  // The clock keeps ticking between events, so SLA timers count down on screen.
+  // The clock keeps ticking between events, so SLA timers count down on screen. Pages refetch too,
+  // in case anything changed without an event (e.g. a promise falling due).
   useEffect(() => {
-    const timer = window.setInterval(() => setState((s) => ({ ...s, clock: s.clock + 30_000 })), 30_000);
+    const timer = window.setInterval(() => {
+      setState((s) => ({ ...s, clock: s.clock + 30_000 }));
+      if (document.visibilityState === "visible") setVersion((v) => v + 1);
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, []);
 

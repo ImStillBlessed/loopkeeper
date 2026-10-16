@@ -18,6 +18,8 @@ import {
 import { stableId } from "../ingest/ids.js";
 import type { ChatMessage } from "../ingest/types.js";
 import type { Llm } from "../llm/llm.js";
+import { readSource } from "../github/api.js";
+import { linkLikelyCode } from "./code-links.js";
 import { mergeDuplicates } from "./duplicates.js";
 import { formatLagosDay, HOUR, parseLagosDate } from "./time.js";
 import type { Extraction, Feature, PipelineEvent, UpdateKind } from "./types.js";
@@ -107,6 +109,16 @@ async function createIssue(ctx: ApplyContext, issue: Extraction["new_issues"][nu
   const feature = ctx.features.find((f) => f.key === featureKey)?.name;
   activity(ctx, `Opened ${issue.kind === "bug" ? "a problem" : issue.kind === "question" ? "a question" : "a request"}: "${issue.title}"${feature ? ` in ${feature}` : ""}${owner ? `, assigned to ${owner}` : ""}`, id);
 
+  // Problems and requests: find where they live in the code, by reading it.
+  if (issue.kind !== "question") {
+    const likely = await linkLikelyCode(ctx.graph, ctx.llm, { id, title: issue.title, summary: issue.summary, featureKey }, embedding, readSource, ts).catch(() => []);
+    if (likely.length) {
+      const read = likely.filter((l) => l.readSource).length;
+      const places = likely.map((l) => (l.functions.length ? `${l.path} (${l.functions.join(", ")})` : l.path)).join(", ");
+      activity(ctx, `${read ? "Read the code" : "Checked the code index"}: most likely in ${places}`, id);
+    }
+  }
+
   ctx.onIssueCreated?.({ issueId: id, title: issue.title, featureKey, severity: issue.severity, embedding });
 
   for (const merge of await mergeDuplicates(ctx.graph, ctx.llm, id, ts)) {
@@ -128,6 +140,7 @@ async function applyIssueUpdate(ctx: ApplyContext, issueIdFromModel: string, kin
   const nextStatus = statusAfter(kind, issue.status, confidence);
   if (!nextStatus || nextStatus === issue.status) {
     if (kind === "confirmed") activity(ctx, `Added to an open issue: ${ctx.message.senderName} has it too`, issue.id);
+    else if (kind === "resolved" && issue.status === "resolved") activity(ctx, `${ctx.message.senderName} confirmed it is fixed`, issue.id);
     return;
   }
 
@@ -157,6 +170,8 @@ export function statusAfter(kind: UpdateKind, current: string, confidence: numbe
       return current === "open" ? "in_progress" : undefined;
     case "resolved":
     case "answered":
+      // The school confirming a fix the team already closed changes nothing.
+      if (current === "resolved") return undefined;
       return confidence >= config.autoCloseMinConfidence ? "resolved" : "possibly_resolved";
     case "reopened":
       return "open";

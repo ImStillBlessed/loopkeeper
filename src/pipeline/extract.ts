@@ -3,6 +3,7 @@ import {
   C2_OPEN_ISSUES_FOR_SCHOOL,
   C3_OPEN_ISSUES_NEAR,
   C4_RECENT_ISSUES,
+  C4B_RECENTLY_RESOLVED,
   C5_ISSUE_CARDS,
   C6_OPEN_FOLLOWUPS,
   OPEN_STATUSES,
@@ -12,7 +13,7 @@ import type { ChatMessage } from "../ingest/types.js";
 import type { Llm } from "../llm/llm.js";
 import { prompt } from "../llm/prompts.js";
 import { describeSender } from "./triage.js";
-import { formatLagos } from "./time.js";
+import { formatLagos, HOUR } from "./time.js";
 import type { Extraction, Feature, Person } from "./types.js";
 
 export interface ExtractionInput {
@@ -34,22 +35,27 @@ export interface IssueCard {
   schools: string[];
 }
 
+/** A ticket closed this recently can still be confirmed fixed, or reopened, from the chat. */
+const RECENTLY_RESOLVED_HOURS = 72;
+
 /**
  * This is where the graph shapes the model's behaviour: before extracting anything, we pull the
- * issues it might be about out of FalkorDB (same school, closest in meaning, most recently active)
- * and hand them to the model, so it can say "this is iss_12 again" instead of creating a duplicate.
+ * issues it might be about out of FalkorDB (same school, closest in meaning, most recently active,
+ * just resolved) and hand them to the model, so it can say "this is iss_12 again" instead of
+ * creating a duplicate, and "it works now" confirms a ticket the team already closed.
  */
-export async function candidateIssues(graph: Graph, sender: Person | undefined, embedding: number[]): Promise<IssueCard[]> {
+export async function candidateIssues(graph: Graph, sender: Person | undefined, embedding: number[], at: number): Promise<IssueCard[]> {
   const params = { openStatuses: OPEN_STATUSES };
-  const [fromSchool, nearby, recent] = await Promise.all([
+  const [fromSchool, nearby, recent, resolved] = await Promise.all([
     sender?.schoolId
       ? run<{ id: string }>(graph, C2_OPEN_ISSUES_FOR_SCHOOL, { ...params, schoolId: sender.schoolId })
       : Promise.resolve([]),
     run<{ id: string }>(graph, C3_OPEN_ISSUES_NEAR, { ...params, embedding, limit: 5 }),
     run<{ id: string }>(graph, C4_RECENT_ISSUES, { ...params, limit: 5 }),
+    run<{ id: string }>(graph, C4B_RECENTLY_RESOLVED, { since: at - RECENTLY_RESOLVED_HOURS * HOUR, limit: 3 }),
   ]);
 
-  const ids = [...new Set([...fromSchool, ...nearby, ...recent].map((row) => row.id))];
+  const ids = [...new Set([...fromSchool, ...nearby, ...recent, ...resolved].map((row) => row.id))];
   if (ids.length === 0) return [];
   return run<IssueCard>(graph, C5_ISSUE_CARDS, { ids });
 }
@@ -58,7 +64,7 @@ export async function extract(graph: Graph, llm: Llm, input: ExtractionInput): P
   const { message, embedding, recent, people, features } = input;
   const sender = people.get(message.senderId);
   const [candidates, followUps] = await Promise.all([
-    candidateIssues(graph, sender, embedding),
+    candidateIssues(graph, sender, embedding, Date.parse(message.ts)),
     run<{ id: string; text: string; dueAt: number; owner: string }>(graph, C6_OPEN_FOLLOWUPS),
   ]);
 
