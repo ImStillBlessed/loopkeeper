@@ -1,5 +1,7 @@
 # The desk's own FalkorDB on the server, reachable only from the server itself (127.0.0.1:6395),
 # with a password and its data kept in a named volume across restarts and upgrades.
+# Every write also goes to an append-only file (flushed each second), so a crash or restart loses
+# at most a second of changes instead of everything since the last snapshot.
 #   docker compose -p support-desk -f deploy/docker-compose.yml --env-file .env up -d
 name: support-desk
 
@@ -10,7 +12,7 @@ services:
     ports:
       - "127.0.0.1:${FALKORDB_PORT:-6395}:6379"
     environment:
-      REDIS_ARGS: "--requirepass ${FALKORDB_PASSWORD:?set FALKORDB_PASSWORD in .env}"
+      REDIS_ARGS: "--requirepass ${FALKORDB_PASSWORD:?set FALKORDB_PASSWORD in .env} --appendonly yes --appendfsync everysec"
     volumes:
       - falkordb-data:/var/lib/falkordb/data
 
