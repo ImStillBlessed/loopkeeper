@@ -10,6 +10,7 @@ import { getWorld } from "../runtime/world.js";
 import { describeSettings, loadSettings, saveSettings, setting, type SettingField } from "../settings.js";
 import { clientRoutes } from "./client-routes.js";
 import { dbRoutes } from "./db-routes.js";
+import { exploreRoutes } from "./explore-routes.js";
 import { githubWebhook } from "./github-webhook.js";
 import { whatsappWebhook } from "./whatsapp-webhook.js";
 import { hqRoutes } from "./hq-routes.js";
@@ -70,6 +71,7 @@ api.put("/settings", requireRole("admin"), async (c) => {
 
 api.route("/clients/:client", clientRoutes);
 api.route("/db", dbRoutes);
+api.route("/explore", exploreRoutes);
 api.route("/", hqRoutes);
 
 api.onError((error, c) => {

@@ -275,6 +275,39 @@ export interface DbGraph {
   indexes: Array<{ label: string; property: string; type: string; entity: string; status: string; options: Record<string, unknown> }>;
 }
 
+/** A graph someone may explore on the Network page. */
+export interface ExploreGraph {
+  name: string;
+  title: string;
+  kind: "client" | "hq" | "hub" | "desk";
+}
+
+export interface ExploreNode {
+  id: number;
+  label: string;
+  caption: string;
+  properties: Record<string, unknown>;
+}
+
+export interface ExploreLink {
+  id: number;
+  type: string;
+  source: number;
+  target: number;
+  properties: Record<string, unknown>;
+}
+
+/** A read-only Cypher query's result: what to draw, and the rows for the table. */
+export interface ExploreResult {
+  nodes: ExploreNode[];
+  links: ExploreLink[];
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+  totalRows: number;
+  engineMs: number;
+  totalMs: number;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -523,6 +556,12 @@ export const api = {
   connectRepo: (repo: string, product: string) =>
     send<{ repo: string; files: number; read: number; features: number; owners: number; featureSource: string; health?: RepoHealth }>("POST", "/repos", { repo, product }),
   repoHealth: (refresh = false) => request<RepoHealth[]>(`/repos/health${refresh ? "?refresh=1" : ""}`),
+
+  // The graph explorer (Network page)
+  exploreGraphs: () => request<ExploreGraph[]>("/explore/graphs"),
+  exploreSchema: (graph: string) =>
+    request<{ labels: Array<{ label: string; count: number }>; relationships: Array<{ type: string; count: number }>; propertyKeys: string[] }>(`/explore/schema?graph=${encodeURIComponent(graph)}`),
+  explore: (graph: string, cypher: string) => send<ExploreResult>("POST", "/explore/query", { graph, cypher }),
 
   // The database (FalkorDB) at work
   database: () => request<{ graphs: DbGraph[] }>("/db"),

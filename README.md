@@ -19,7 +19,7 @@ The live desk runs one real Ednovax school, **Henson** (Benin City), connected t
 2. Reply in the group (Conversations, or the client page). Ask for details and the teacher answers; ignore them and they chase you, and the principal steps in.
 3. Open the ticket and **Send to GitHub**: the issue is written from the graph (what the school said, where it lives in the code, who owns it).
 4. Close the ticket, or merge the fix. The teacher tries it and tells you whether it works. One problem fails its first fix on purpose.
-5. Try **Ask** ("what is Henson waiting on?", "where in the code is the scores bug?"), **Patterns**, **Analytics**, **Network** (the graph in 3D) and **Database** (FalkorDB at work: every graph, its indexes and each query as it runs).
+5. Try **Ask** ("what is Henson waiting on?", "where in the code is the scores bug?"), **Patterns**, **Analytics**, **Network** (explore the graph like FalkorDB Browser: run read-only Cypher, click any node for its properties) and **Database** (FalkorDB at work: every graph, its indexes and each query as it runs).
 
 **To try the live desk, sign in as the demo visitor** (`demo@ednovax.com`, listed on the login page with its password). It sees only the demo school and can do everything above except send to GitHub and change settings. The staff accounts (Ednovax Support, Blessed Oigbochie, tech lead, Maro Orode, CTO) are for the Ednovax team; the live desk also serves real schools, which the demo account never sees.
 

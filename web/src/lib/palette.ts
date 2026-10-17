@@ -58,7 +58,7 @@ export const PRODUCT_NAMES: Record<string, string> = {
   ednovax: "Ednovax",
 };
 
-/** Graph node label → colour on the network view (works on both themes). */
+/** Graph node label → colour on the Network page (works on both themes). */
 export const NODE_COLORS: Record<string, string> = {
   Issue: "#D2402C",
   School: "#B0761A",
@@ -67,22 +67,13 @@ export const NODE_COLORS: Record<string, string> = {
   Message: "#1A7F5A",
   Decision: "#2FA57A",
   Feature: "#6B4FD8",
-  CodeFile: "#8D7BE0",
-  Group: "#3B6CF0",
+  CodeFile: "#0EA5E9",
+  Group: "#0D9488",
   Question: "#C25BA8",
   Conversation: "#C25BA8",
   StatusChange: "#8A8F9C",
   Reminder: "#8A8F9C",
 };
-
-export const NODE_NAMES: Array<{ label: string; name: string }> = [
-  { label: "Issue", name: "Tickets" },
-  { label: "Person", name: "People" },
-  { label: "Message", name: "Messages" },
-  { label: "Feature", name: "Features" },
-  { label: "CodeFile", name: "Code" },
-  { label: "FollowUp", name: "Promises" },
-];
 
 export const TENANCY: Record<string, { label: string; hint: string }> = {
   own_repo: { label: "Own repo", hint: "The school has a repository of its own" },
