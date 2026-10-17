@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { DEMO_CLIENT_IDS } from "../data/demo/henson.js";
 import type { StaffRole } from "../data/demo/staff.js";
 import { config } from "./config.js";
 import { getHqGraph } from "./graph/client.js";
@@ -85,6 +86,14 @@ export const requireLogin: MiddlewareHandler<{ Variables: { user: StaffUser } }>
   await next();
 };
 
+export const isDemo = (user: StaffUser) => user.role === "demo";
+
+/** Things the demo account may not do (settings, real clients, GitHub, the clock). */
+export const notDemo: MiddlewareHandler<{ Variables: { user: StaffUser } }> = async (c, next) => {
+  if (isDemo(c.get("user"))) return c.json({ error: "The demo account can't do that. It can work the demo school's tickets and conversations." }, 403);
+  await next();
+};
+
 /** Only some roles may change settings. */
 export function requireRole(...roles: StaffRole[]): MiddlewareHandler<{ Variables: { user: StaffUser } }> {
   return async (c, next) => {
@@ -94,12 +103,14 @@ export function requireRole(...roles: StaffRole[]): MiddlewareHandler<{ Variable
 }
 
 /**
- * Which clients someone may open. Support agents see the clients assigned to them;
- * leads, developers and admins see every client.
+ * Which clients someone may open. Support agents see the clients assigned to them; the demo account
+ * sees only the demo school; leads, developers and admins see every client.
  */
 export async function visibleClientIds(user: StaffUser): Promise<string[]> {
   const clients = await run<{ id: string; agentId: string }>(await getHqGraph(), H18_CLIENTS);
-  return clients.filter((client) => user.role !== "agent" || client.agentId === user.id).map((client) => client.id);
+  return clients
+    .filter((client) => (user.role === "demo" ? DEMO_CLIENT_IDS.includes(client.id) : user.role !== "agent" || client.agentId === user.id))
+    .map((client) => client.id);
 }
 
 export async function canSeeClient(user: StaffUser, clientId: string): Promise<boolean> {

@@ -2,8 +2,8 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { existsSync } from "node:fs";
-import { STAFF } from "../../data/demo/staff.js";
-import { currentUser, logIn, logOut, requireLogin, requireRole, type StaffUser } from "../auth.js";
+import { DEMO_VISITOR, STAFF, type StaffSeed } from "../../data/demo/staff.js";
+import { currentUser, logIn, logOut, notDemo, requireLogin, requireRole, type StaffUser } from "../auth.js";
 import { config } from "../config.js";
 import { githubConfigured } from "../github/api.js";
 import { getWorld } from "../runtime/world.js";
@@ -37,10 +37,19 @@ api.get("/auth/me", async (c) => {
   return user ? c.json(user) : c.json({ error: "Not logged in" }, 401);
 });
 
-/** The demo accounts, shown on the login screen so judges can sign in (unless turned off with SHOW_DEMO_ACCOUNTS=false). */
-api.get("/auth/demo-accounts", (c) =>
-  c.json(config.demo.showAccounts ? { password: config.demo.password, accounts: STAFF.map(({ name, email, role, title }) => ({ name, email, role, title })) } : { password: null, accounts: [] }),
-);
+/**
+ * The accounts listed on the login screen: the demo visitor (SHOW_DEMO_VISITOR) and, on a private
+ * setup, the staff (SHOW_DEMO_ACCOUNTS). Each comes with the password to sign in with.
+ */
+api.get("/auth/demo-accounts", (c) => {
+  const listed = ({ name, email, role, title }: StaffSeed, password: string) => ({ name, email, role, title, password });
+  return c.json({
+    accounts: [
+      ...(config.demo.showVisitor ? [listed(DEMO_VISITOR, config.demo.visitorPassword)] : []),
+      ...(config.demo.showAccounts ? STAFF.map((s) => listed(s, config.demo.password)) : []),
+    ],
+  });
+});
 
 api.route("/github/webhook", githubWebhook);
 api.route("/whatsapp/webhook", whatsappWebhook);
@@ -52,7 +61,7 @@ api.use("*", requireLogin);
 /** What's configured, so the dashboard and CLI can explain what's missing, and where the desk is reachable. */
 api.get("/status", (c) => c.json({ hasApiKey: Boolean(setting("anthropicApiKey")), githubConfigured: githubConfigured(), publicUrl: publicUrl(c) }));
 
-api.get("/settings", (c) => c.json(describeSettings()));
+api.get("/settings", notDemo, (c) => c.json(describeSettings()));
 
 api.put("/settings", requireRole("admin"), async (c) => {
   await saveSettings(await c.req.json<Partial<Record<SettingField, string>>>());

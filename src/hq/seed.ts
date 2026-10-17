@@ -1,11 +1,10 @@
 import type { Graph } from "falkordb";
-import { SLA_POLICIES, STAFF } from "../../data/demo/staff.js";
+import { DEMO_VISITOR, SLA_POLICIES, STAFF } from "../../data/demo/staff.js";
 import type { ClientSeed } from "../../data/synthetic/cast.js";
 import { CODE_FILES, DEMO_REPOS, FEATURES, PRODUCTS } from "../../data/synthetic/product.js";
 import { hashPassword } from "../auth.js";
 import { config } from "../config.js";
 import {
-  H10_STAFF_SEED,
   H13_SLA_SEED,
   H15_CLIENT_UPSERT,
   H16_CLIENT_PRODUCTS,
@@ -15,6 +14,7 @@ import {
   H3_CODE_SEED,
   H4_IMPORTS_SEED,
   H22_MARK_SEED_VERSION,
+  H24_STAFF_ENSURE,
   HD1_SET_DEPLOYMENTS,
 } from "../graph/hq-queries.js";
 import { P1_CLIENT, P3_GROUP, run, S2_SCHOOLS, S3_PEOPLE, S4_WORKS_AT } from "../graph/queries.js";
@@ -73,10 +73,23 @@ export async function seedHq(hq: Graph, salt: string, clients: ClientSeed[]): Pr
     await run(hq, H4_IMPORTS_SEED, { imports: files.flatMap((f) => (f.imports ?? []).map((to) => ({ from: id(f.path), to: id(to) }))) });
   }
 
-  await run(hq, H10_STAFF_SEED, { staff: STAFF.map((s) => ({ ...s, passwordHash: hashPassword(config.demo.password) })) });
+  await ensureStaff(hq);
   await run(hq, H13_SLA_SEED, { policies: SLA_POLICIES });
   for (const client of clients) await registerClient(hq, client);
   await run(hq, H22_MARK_SEED_VERSION, { version: DEMO_DATA_VERSION });
+}
+
+/**
+ * The staff accounts and the demo visitor. Run at every start, so an account added to the code
+ * appears on a server that was seeded before; existing passwords are never changed.
+ */
+export async function ensureStaff(hq: Graph): Promise<void> {
+  await run(hq, H24_STAFF_ENSURE, {
+    staff: [
+      ...STAFF.map((s) => ({ ...s, passwordHash: hashPassword(config.demo.password) })),
+      { ...DEMO_VISITOR, passwordHash: hashPassword(config.demo.visitorPassword) },
+    ],
+  });
 }
 
 /**

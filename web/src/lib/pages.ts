@@ -12,6 +12,7 @@ import {
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
+import type { Role } from "./api";
 import type { Tone } from "./palette";
 
 export interface PageMeta {
@@ -20,6 +21,8 @@ export interface PageMeta {
   icon: LucideIcon;
   /** The page's own colour: its icon tile in the sidebar and the header. */
   tone: Tone;
+  /** Roles that don't get this page. */
+  hiddenFor?: Role[];
 }
 
 /** Every page of the desk, grouped as in the sidebar. */
@@ -47,7 +50,7 @@ export const PAGE_GROUPS: Array<{ group: string; pages: PageMeta[] }> = [
     group: "Company",
     pages: [
       { id: "products", label: "Products", icon: Boxes, tone: "sky" },
-      { id: "settings", label: "Settings", icon: Settings, tone: "neutral" },
+      { id: "settings", label: "Settings", icon: Settings, tone: "neutral", hiddenFor: ["demo"] },
     ],
   },
 ];

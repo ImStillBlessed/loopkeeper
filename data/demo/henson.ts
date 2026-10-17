@@ -22,6 +22,12 @@ export const HENSON: ClientSeed = {
   ],
 };
 
+/**
+ * Clients whose people are simulated. The demo account sees only these, "Start over" only resets
+ * these, and the central hub never routes real messages into them.
+ */
+export const DEMO_CLIENT_IDS = [HENSON.id];
+
 export interface Teacher {
   key: string;
   name: string;

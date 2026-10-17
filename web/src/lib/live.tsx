@@ -21,6 +21,9 @@ interface LiveState {
 
 const LiveContext = createContext<LiveState | null>(null);
 
+/** A pipeline failure older than this is history, not news. */
+const STALE_ERROR_MS = 10 * 60_000;
+
 /** One connection to the desk's event stream, shared by every page. */
 export function LiveProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<DeskEvent[]>([]);
@@ -53,7 +56,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       if (event.kind === "message") setState((s) => ({ ...s, clock: Math.max(s.clock, Date.parse(event.message.ts)) }));
       if (event.kind === "activity" || event.kind === "bot" || event.kind === "hub" || (event.kind === "message" && event.message.relevant)) bumpSoon();
       if (event.kind === "run") {
-        setError(event.state === "failed" ? event.error : undefined);
+        // History replays old failures to a page that just opened: only recent ones are shown.
+        const stale = event.state === "failed" && event.at !== undefined && Date.now() - event.at > STALE_ERROR_MS;
+        if (!stale) setError(event.state === "failed" ? event.error : undefined);
         if (event.state !== "started") bumpSoon();
       }
     }, reconnected);

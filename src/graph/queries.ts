@@ -70,7 +70,7 @@ export const P2_CLIENT_SUMMARY = query("P2", "Client name, counters, and how man
   OPTIONAL MATCH (g:Group)
   WITH p, count(DISTINCT g) AS groups
   OPTIONAL MATCH (r:Repo)
-  RETURN p.id AS id, p.name AS name, p.seen AS seen, p.clock AS clock, groups, count(DISTINCT r) AS repos`);
+  RETURN p.id AS id, coalesce(p.name, '') AS name, coalesce(p.seen, 0) AS seen, coalesce(p.clock, 0) AS clock, groups, count(DISTINCT r) AS repos`);
 
 export const P3_GROUP = query("P3", "Add a WhatsApp group to the project", `
   MERGE (g:Group {id: $id})
@@ -403,7 +403,7 @@ export const C12_PEOPLE = query("C12", "Everyone the graph knows, with role and 
 export const Q0_STATS = query("Q0", "Ingest counters", `
   MATCH (p:Client)
   OPTIONAL MATCH (m:Message)
-  RETURN p.seen AS seen, p.ignored AS ignored, count(m) AS used, p.clock AS clock`);
+  RETURN coalesce(p.seen, 0) AS seen, coalesce(p.ignored, 0) AS ignored, count(m) AS used, coalesce(p.clock, 0) AS clock`);
 
 export const Q1_OPEN_ITEMS = query("Q1", "Open items, optionally for one school / person / feature, with sources", `
   MATCH (p:Person)-[:SENT]->(m:Message)-[:EVIDENCE_OF]->(i:Issue)
@@ -725,7 +725,7 @@ export const F1_RECENT_MESSAGES = query("F1", "The latest stored messages with w
   ORDER BY m.ts DESC
   LIMIT $limit
   OPTIONAL MATCH (m)-[e:EVIDENCE_OF]->(i:Issue)
-  RETURN m.id AS id, g.id AS groupId, m.ts AS ts, p.name AS senderName, coalesce(m.text, '') AS text,
+  RETURN m.id AS id, g.id AS groupId, m.ts AS ts, coalesce(p.name, '') AS senderName, coalesce(m.text, '') AS text,
          coalesce(m.hasMedia, false) AS hasMedia, coalesce(m.type, 'status_update') AS type, coalesce(m.sentiment, 'calm') AS sentiment,
          collect(CASE WHEN i IS NULL THEN null ELSE {kind: e.kind, issueId: i.id, title: i.title} END) AS evidence`);
 

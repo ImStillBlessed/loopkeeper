@@ -51,7 +51,7 @@ export const MOOD: Record<string, { label: string; tone: Tone }> = {
 
 export const PLAN: Record<string, string> = { premium: "Premium", standard: "Standard" };
 export const CLIENT_TYPE: Record<string, string> = { school: "School", lecture_centre: "Lecture centre" };
-export const ROLE: Record<string, string> = { admin: "Admin", lead: "Support lead", agent: "Support agent", developer: "Developer" };
+export const ROLE: Record<string, string> = { admin: "Admin", lead: "Support lead", agent: "Support agent", developer: "Developer", demo: "Demo" };
 
 export const PRODUCT_NAMES: Record<string, string> = {
   sms_v1: "Ednovax SMS v1",

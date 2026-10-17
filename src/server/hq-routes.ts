@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { requireRole, visibleClientIds, type StaffUser } from "../auth.js";
+import { isDemo, notDemo, requireRole, visibleClientIds, type StaffUser } from "../auth.js";
 import { githubConfigured, normaliseRepo } from "../github/api.js";
 import { DEMO_REPOS } from "../../data/synthetic/product.js";
 import { repoHealth, type RepoHealth } from "../github/health.js";
@@ -35,7 +35,10 @@ hqRoutes.get("/events", async (c) => {
   const world = await getWorld();
   const visible = new Set(await visibleClientIds(c.get("user")));
   const seesHub = ["admin", "lead", "developer"].includes(c.get("user").role);
-  const allowed = (event: HubEvent) => (event.kind === "hub" || event.kind === "import" ? seesHub : !event.clientId || visible.has(event.clientId));
+  // The demo account gets nothing from beyond the demo school, except whether it's live.
+  const demo = isDemo(c.get("user"));
+  const allowed = (event: HubEvent) =>
+    event.kind === "hub" || event.kind === "import" ? seesHub : event.clientId ? visible.has(event.clientId) : !demo || event.kind === "live";
   const withHistory = c.req.query("history") !== "none";
   return streamSSE(c, async (stream) => {
     const send = (event: HubEvent) => stream.writeSSE({ data: JSON.stringify(event) });
@@ -67,7 +70,7 @@ hqRoutes.post("/live/stop", async (c) => {
 });
 
 /** Fast-forward the chat clock, e.g. two days, to watch promises and SLAs fall due. */
-hqRoutes.post("/clock/advance", async (c) => {
+hqRoutes.post("/clock/advance", notDemo, async (c) => {
   const { hours } = await c.req.json<{ hours: number }>();
   if (!(hours > 0)) return c.json({ error: "hours must be positive" }, 400);
   const world = await getWorld();
@@ -105,13 +108,29 @@ hqRoutes.delete("/clients/:id", requireRole("admin"), async (c) => {
 
 // ─── Products, repos, staff, SLA ─────────────────────────────────────────────
 
-hqRoutes.get("/products", async (c) => c.json(await (await getWorld()).products()));
+hqRoutes.get("/products", async (c) => {
+  const products = await (await getWorld()).products();
+  if (!isDemo(c.get("user"))) return c.json(products);
+  const visible = new Set(await visibleClientIds(c.get("user")));
+  return c.json(products.map((product) => ({ ...product, clients: product.clients.filter((id) => visible.has(id)) })));
+});
+
+/** The repositories the demo account may see: the ones the demo school runs from. Everyone else sees all. */
+async function reposFor(user: StaffUser): Promise<((repo: string) => boolean)> {
+  if (!isDemo(user)) return () => true;
+  const visible = new Set(await visibleClientIds(user));
+  const deployments = await run<{ clientId: string; repo: string }>((await getWorld()).hq, HD3_ALL_DEPLOYMENTS);
+  const repos = new Set(deployments.filter((d) => visible.has(d.clientId)).map((d) => d.repo.toLowerCase()));
+  return (repo) => repos.has(repo.toLowerCase());
+}
 
 hqRoutes.get("/products/:key/features", async (c) => c.json(await run((await getWorld()).hq, H9_FEATURE_DETAILS, { product: c.req.param("key") })));
 
 hqRoutes.get("/repos", async (c) => {
   const world = await getWorld();
-  return c.json({ githubConfigured: githubConfigured(), lastError: world.lastGithubError ?? null, repos: await run(world.hq, HG2_REPOS) });
+  const shown = await reposFor(c.get("user"));
+  const repos = (await run<{ id: string }>(world.hq, HG2_REPOS)).filter((r) => shown(r.id));
+  return c.json({ githubConfigured: githubConfigured(), lastError: isDemo(c.get("user")) ? null : (world.lastGithubError ?? null), repos });
 });
 
 /** Every repository a product or a client uses: access, issues, webhook and code, each with what to do. Cached for a minute. */
@@ -120,7 +139,8 @@ hqRoutes.get("/repos/health", async (c) => {
   if (!healthCache || c.req.query("refresh") || Date.now() - healthCache.at > 60_000) {
     healthCache = { at: Date.now(), result: await repoHealth((await getWorld()).hq) };
   }
-  return c.json(healthCache.result);
+  const shown = await reposFor(c.get("user"));
+  return c.json(healthCache.result.filter((h) => shown(h.repo)));
 });
 
 /**
@@ -151,12 +171,17 @@ hqRoutes.delete("/repos/:owner/:name", requireRole("admin", "lead"), async (c) =
   return c.json({ ok: true });
 });
 
-hqRoutes.post("/repos/sync", async (c) => {
+hqRoutes.post("/repos/sync", notDemo, async (c) => {
   await (await getWorld()).syncGithub();
   return c.json({ ok: true });
 });
 
-hqRoutes.get("/staff", async (c) => c.json(await run((await getWorld()).hq, H12_STAFF)));
+hqRoutes.get("/staff", async (c) => {
+  const staff = await run<{ clients: string[] }>((await getWorld()).hq, H12_STAFF);
+  if (!isDemo(c.get("user"))) return c.json(staff);
+  const visible = new Set(await visibleClientIds(c.get("user")));
+  return c.json(staff.map((member) => ({ ...member, clients: member.clients.filter((id) => visible.has(id)) })));
+});
 
 hqRoutes.get("/sla", async (c) => c.json(await run((await getWorld()).hq, H14_SLA_POLICIES)));
 
@@ -181,7 +206,7 @@ hqRoutes.get("/patterns", async (c) => {
   const world = await getWorld();
   const visible = new Set(await visibleClientIds(c.get("user")));
   const names = new Map((await world.registry()).map((r) => [r.id, r.name]));
-  const patterns = await run<PatternRow>(world.hq, X7_PATTERNS);
+  const patterns = await patternsFor(world, c.get("user"));
   return c.json(
     patterns.map((pattern) => ({
       ...pattern,
@@ -213,10 +238,20 @@ hqRoutes.get("/tickets", async (c) => {
 });
 
 /** The patterns this person may see, as the HQ Ask and Overview describe them (other clients never named). */
+/** Patterns across clients. The demo account only sees its own school's part of them, and none without it. */
+async function patternsFor(world: World, user: StaffUser): Promise<PatternRow[]> {
+  const patterns = await run<PatternRow>(world.hq, X7_PATTERNS);
+  if (!isDemo(user)) return patterns;
+  const visible = new Set(await visibleClientIds(user));
+  return patterns
+    .map((pattern) => ({ ...pattern, signals: pattern.signals.filter((s) => visible.has(s.clientId)) }))
+    .filter((pattern) => pattern.signals.length > 0);
+}
+
 async function visiblePatterns(world: World, user: StaffUser) {
   const visible = new Set(await visibleClientIds(user));
   const names = new Map((await world.registry()).map((r) => [r.id, r.name]));
-  const patterns = await run<PatternRow>(world.hq, X7_PATTERNS);
+  const patterns = await patternsFor(world, user);
   return patterns.map((p) => ({
     id: p.id,
     title: p.title,
@@ -300,7 +335,8 @@ hqRoutes.post("/ask", async (c) => {
 
 /** A conversation is open to anyone who can see every client it drew on. */
 async function mayOpen(user: StaffUser, conversation: { clientIds: string[] } | undefined): Promise<boolean> {
-  if (!conversation) return false;
+  // A conversation that drew on no client at all may still be about real ones: not for the demo account.
+  if (!conversation || (conversation.clientIds.length === 0 && isDemo(user))) return false;
   const visible = new Set(await visibleClientIds(user));
   return conversation.clientIds.every((id) => visible.has(id));
 }
@@ -339,7 +375,7 @@ hqRoutes.delete("/ask/conversations/hq/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-/** A fresh demo run: chats, tickets, the hub and Ask history are cleared, and the teachers start again. */
+/** A fresh demo run: the demo school's chats and tickets are cleared and its teachers start again. Real clients are untouched. */
 hqRoutes.post("/demo/start-over", requireRole("admin", "lead"), async (c) => {
   await (await getWorld()).startOver();
   return c.json({ ok: true });
@@ -415,4 +451,9 @@ hqRoutes.post("/whatsapp/groups/:id/hub", requireRole("admin"), async (c) => {
 });
 
 /** Every client deployment: which repo and branch each client runs (for the products page). */
-hqRoutes.get("/deployments", async (c) => c.json(await run((await getWorld()).hq, HD3_ALL_DEPLOYMENTS)));
+hqRoutes.get("/deployments", async (c) => {
+  const deployments = await run<{ clientId: string }>((await getWorld()).hq, HD3_ALL_DEPLOYMENTS);
+  if (!isDemo(c.get("user"))) return c.json(deployments);
+  const visible = new Set(await visibleClientIds(c.get("user")));
+  return c.json(deployments.filter((d) => visible.has(d.clientId)));
+});

@@ -1,31 +1,27 @@
 # Data
 
-**Everything in this folder is 100% fictional.** The schools, teachers, staff and the one phone number (`+234 803 555 0142`, in the reserved 555 range) are invented. No real chats, people or student data are used anywhere in Loopkeeper.
+No real chats, contacts or student data are used anywhere in Loopkeeper. The live demo is connected to a real Ednovax school's GitHub repositories (Henson); the people and conversations in it are invented.
 
-## `synthetic/`
-
-A generator for the "Ednovax Schools Support" WhatsApp group: 3 schools, 8 teachers/admins and 3 Ednovax staff, over 3 weeks (21 Sep – 11 Oct 2026).
+## `demo/`: the live demo
 
 | File | What it is |
 |---|---|
-| `cast.ts` | Schools and people |
-| `scenarios.ts` | The scripted real work, one block per demo scenario (S1–S7 + everyday support) |
+| `staff.ts` | The Ednovax staff who sign in to the desk (always real people at the keyboard) and the SLA per plan |
+| `henson.ts` | The demo school: its deployments (its GitHub repositories), its four teachers (invented, played by AI), the problems they raise in order, and the small talk they post |
+
+The teachers are run by [`src/runtime/teachers.ts`](../src/runtime/teachers.ts) with the prompt in [`prompts/teachers.md`](../prompts/teachers.md). They only react: they raise one problem at a time, answer what Ednovax asks with the facts they were given, chase when nobody replies, and test a fix once its ticket is closed. One problem fails its first fix on purpose.
+
+## `synthetic/`: test fixtures and the product reference
+
+A generator for a fictional "Ednovax Schools Support" WhatsApp group: four schools, their teachers and admins and three Ednovax staff over three weeks. Every person and phone number is invented (the one number, `+234 803 555 0142`, is in the reserved 555 range). The tests run this chat through the whole pipeline against a real FalkorDB, with a scripted model, to check tenancy, duplicates, patterns across clients and that HQ never holds message text.
+
+| File | What it is |
+|---|---|
+| `cast.ts` | The fictional clients and people, and the client and deployment types |
+| `scenarios.ts` | The scripted real work, one block per scenario |
 | `noise.ts` | Seeded generator for greetings, prayers, birthdays, broadcasts and stickers |
 | `generator.ts` | Merges and orders everything, then renders it as an Android or iOS WhatsApp export |
-| `generate.ts` | CLI: `npm run data:generate` |
-| `output/` | The generated exports, the ground-truth labels and the roster |
+| `generate.ts` | CLI: `npm run data:generate` writes the exports to `output/` |
+| `product.ts` | Ednovax's products and features, and a stand-in code reference used until a product's real repository is connected |
 
-### Planted scenarios
-
-| ID | Scenario | Tests |
-|---|---|---|
-| S1 (+S8) | Three schools report "scores not saving" in different words over 2 days. Still open at the end → dispatched to the code agent | Duplicate merge (WCC), dispatch fix |
-| S2 | CBT timer missing on Tecno phones → screenshot → fix promised → "It's working now 🙏🏾" | Full lifecycle, auto-close with provenance |
-| S3 | Admin promises the student list "by Thursday", never sends it | Follow-up → overdue reminder |
-| S4 | "We've agreed to move our mock exam to Friday" | Decision traced to its message |
-| S5 | "Can we export results to Excel?" | Feature request → `results_export` |
-| S6 | "Login is very slow" → "It's fine now" 20 min later | Quick, low-severity resolve |
-| S7 | Teacher with two open issues says "It's working now" | "Possibly resolved" guardrail |
-| BG | Everyday questions, small bugs, promises that are kept | Realistic volume of real work |
-
-`ednovax-schools-support.labels.json` gives every message its true label (`relevant`, `type`, `scenario`), so we can measure how well triage does.
+`output/ednovax-schools-support.labels.json` gives every message its true label (`relevant`, `type`, `scenario`), so triage can be measured.

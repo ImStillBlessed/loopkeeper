@@ -1,7 +1,7 @@
 import { ChevronDown, ExternalLink, Flag, GitPullRequest, Send, Sparkles, Waypoints } from "lucide-react";
 import { useEffect, useState } from "react";
 import { clientApi, type Person, type TeamNote, type Ticket, type TicketDetail, type TicketStatus } from "@/lib/api";
-import { useUser } from "@/lib/auth";
+import { can, useUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { KIND, MOOD, ROLE, STATUS } from "@/lib/palette";
@@ -228,9 +228,11 @@ function Actions({ detail, people, clientId, onChanged }: { detail: TicketDetail
             </a>
           </Button>
         ) : (
-          <Button variant="ghost" size="sm" onClick={() => run(() => client.openGithubIssue(issue.id))}>
-            <GitPullRequest /> Open GitHub issue
-          </Button>
+          can(user.role, "write_github") && (
+            <Button variant="ghost" size="sm" onClick={() => run(() => client.openGithubIssue(issue.id))}>
+              <GitPullRequest /> Open GitHub issue
+            </Button>
+          )
         )}
       </div>
       {escalating && (

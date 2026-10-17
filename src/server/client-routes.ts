@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { askInConversation, deleteConversation, getConversation, listConversations, migrateLegacyQuestions } from "../agent/conversations.js";
-import { canSeeClient, requireRole, type StaffUser } from "../auth.js";
+import { canSeeClient, isDemo, notDemo, requireRole, type StaffUser } from "../auth.js";
 import { openGithubIssue } from "../github/issues.js";
 import { HG2_REPOS, HW5_GROUP_OF_CLIENT, X11_SIGNAL_GITHUB, X8_PATTERN_FOR_TICKET } from "../graph/hq-queries.js";
 import { cloudApiConfigured, createGroup, sendGroupText } from "../whatsapp/cloud-api.js";
@@ -75,7 +75,7 @@ async function clientRepos(clientId: string): Promise<string[]> {
 
 clientRoutes.get("/stats", async (c) => c.json(await c.get("runtime").stats()));
 
-clientRoutes.post("/reset", async (c) => {
+clientRoutes.post("/reset", notDemo, async (c) => {
   await c.get("runtime").reset();
   return c.json({ ok: true });
 });
@@ -84,7 +84,7 @@ clientRoutes.post("/reset", async (c) => {
 
 clientRoutes.get("/groups", async (c) => c.json(await run(graphOf(c), P4_GROUPS)));
 
-clientRoutes.post("/groups", async (c) => {
+clientRoutes.post("/groups", notDemo, async (c) => {
   const { name, source = "simulator" } = await c.req.json<{ name: string; source?: "simulator" | "whatsapp_export" | "wa_cloud" }>();
   if (!name?.trim()) return c.json({ error: "Give the group a name" }, 400);
   const id = stableId("grp", [c.get("runtime").id, name.trim().toLowerCase(), String(Date.now())]);
@@ -92,20 +92,20 @@ clientRoutes.post("/groups", async (c) => {
   return c.json({ id });
 });
 
-clientRoutes.patch("/groups/:groupId", async (c) => {
+clientRoutes.patch("/groups/:groupId", notDemo, async (c) => {
   const { name } = await c.req.json<{ name: string }>();
   if (!name?.trim()) return c.json({ error: "A group needs a name" }, 400);
   await run(graphOf(c), M3_RENAME_GROUP, { id: c.req.param("groupId"), name: name.trim() });
   return c.json({ ok: true });
 });
 
-clientRoutes.delete("/groups/:groupId", async (c) => {
+clientRoutes.delete("/groups/:groupId", notDemo, async (c) => {
   await run(graphOf(c), M4_REMOVE_GROUP, { id: c.req.param("groupId") });
   return c.json({ ok: true });
 });
 
 /** Inbound messages, shaped like a WhatsApp webhook: who sent what to which group. */
-clientRoutes.post("/groups/:groupId/messages", async (c) => {
+clientRoutes.post("/groups/:groupId/messages", notDemo, async (c) => {
   const { sender, text, hasMedia } = await c.req.json<{ sender: string; text: string; hasMedia?: boolean }>();
   if (!sender || (!text && !hasMedia)) return c.json({ error: "A message needs a sender and text" }, 400);
   const runtime = c.get("runtime");
@@ -114,7 +114,7 @@ clientRoutes.post("/groups/:groupId/messages", async (c) => {
 });
 
 /** A WhatsApp "Export chat" .txt file as the request body. */
-clientRoutes.post("/groups/:groupId/import", async (c) => {
+clientRoutes.post("/groups/:groupId/import", notDemo, async (c) => {
   const count = c.get("runtime").importExport(c.req.param("groupId"), await c.req.text());
   return c.json({ ok: true, messages: count });
 });
@@ -181,7 +181,7 @@ clientRoutes.post("/issues/:id/status", async (c) => {
   return c.json({ ok: true });
 });
 
-clientRoutes.post("/issues/:id/github", async (c) => {
+clientRoutes.post("/issues/:id/github", notDemo, async (c) => {
   const { repo } = await c.req.json<{ repo?: string }>().catch(() => ({}) as { repo?: string });
   const runtime = c.get("runtime");
   const target = repo ?? (await clientRepos(runtime.id))[0];
@@ -232,6 +232,7 @@ clientRoutes.post("/ask", async (c) => {
         clientName: client?.name,
         // What the person tells the agent is stored as their message, through the client's pipeline.
         remember: (text) => world.addNote(runtime.id, c.get("user"), text),
+        mayWriteGithub: !isDemo(c.get("user")),
       },
     }),
   );

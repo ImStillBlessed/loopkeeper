@@ -67,7 +67,8 @@ export type PipelineEvent =
   | { kind: "stats"; seen: number; ignored: number; used: number }
   /** The live connection: is the simulated group sending, and what time is it in the chat. */
   | { kind: "live"; running: boolean; clock: number; groupId?: string }
-  | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string };
+  /** A batch of messages was read (or failed). `at` is when, so a page opened later can skip old failures. */
+  | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string; at?: number };
 
 /** A message in the central support hub, and where it was routed. */
 export interface HubEntry {

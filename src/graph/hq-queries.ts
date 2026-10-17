@@ -84,10 +84,11 @@ export const H9_FEATURE_DETAILS = query("H9", "Features of a product with files 
 
 // ─── Staff, SLA policies, clients ────────────────────────────────────────────
 
-export const H10_STAFF_SEED = query("H10", "Staff accounts", `
+export const H24_STAFF_ENSURE = query("H24", "Staff accounts: create missing ones, update names and roles, never touch a password", `
   UNWIND $staff AS s
   MERGE (n:Staff {id: s.id})
-  SET n.name = s.name, n.email = s.email, n.role = s.role, n.title = s.title, n.passwordHash = s.passwordHash`);
+    ON CREATE SET n.passwordHash = s.passwordHash
+  SET n.name = s.name, n.email = s.email, n.role = s.role, n.title = s.title`);
 
 export const H11_STAFF_BY_EMAIL = query("H11", "A staff member by email (for login)", `
   MATCH (s:Staff {email: $email})

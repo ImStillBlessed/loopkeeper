@@ -779,11 +779,11 @@ function DemoSection() {
         <Panel title="Start over">
           <div className="flex flex-col items-start gap-4 p-5">
             <p className="text-[14px] text-muted">
-              Clears every chat, ticket and promise, the hub and Ask history. The teachers start again from their first problem. Clients, staff, products and connections stay.
+              Clears the demo school's chat, tickets and promises, and its teachers start again from their first problem. Real clients, the hub and everything else stay as they are.
             </p>
             <Confirm
               title="Start over?"
-              description="Every conversation, ticket and promise is deleted. This can't be undone."
+              description="The demo school's conversations, tickets and promises are deleted. This can't be undone."
               action="Start over"
               onConfirm={async () => {
                 setError(undefined);

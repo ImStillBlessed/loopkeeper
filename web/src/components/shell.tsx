@@ -1,7 +1,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { FastForward, LogOut, Menu, Moon, Pause, Play, Sun, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { useAuth, useUser } from "@/lib/auth";
+import { can, useAuth, useUser } from "@/lib/auth";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { useLive } from "@/lib/live";
 import { PAGE_GROUPS, TILE } from "@/lib/pages";
@@ -15,6 +15,7 @@ import { Button } from "./ui/button";
 
 /** The signed-in frame: a white sidebar with coloured page icons, and a slim top bar with the chat clock. */
 export function Shell({ children, badges }: { children: ReactNode; badges: Partial<Record<string, number>> }) {
+  const user = useUser();
   const route = useRoute();
   const current = route.path[0] ?? "overview";
   const [open, setOpen] = useState(false);
@@ -41,7 +42,7 @@ export function Shell({ children, badges }: { children: ReactNode; badges: Parti
             <div key={section.group} className="mb-6">
               <div className="mb-2 px-3 text-[12px] font-semibold text-faint">{section.group}</div>
               <div className="flex flex-col gap-0.5">
-                {section.pages.map((page) => {
+                {section.pages.filter((page) => !page.hiddenFor?.includes(user.role)).map((page) => {
                   const active = current === page.id;
                   const badge = badges[page.id];
                   return (
@@ -98,6 +99,7 @@ function UserBlock() {
 
 /** The chat clock, the live demo controls and the theme toggle. */
 function TopBar({ onMenu }: { onMenu: () => void }) {
+  const user = useUser();
   const live = useLive();
   const [theme, toggleTheme] = useTheme();
 
@@ -131,6 +133,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
               <Play /> <span className="hidden sm:inline">Go live</span>
             </Button>
           )}
+          {can(user.role, "move_clock") && (
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button variant="outline" size="sm" aria-label="Fast-forward the chat clock">
@@ -153,6 +156,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
+          )}
           <button
             onClick={toggleTheme}
             className="grid size-9 place-items-center rounded-xl border border-line text-muted transition-colors hover:bg-paper hover:text-ink"

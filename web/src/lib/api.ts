@@ -2,7 +2,7 @@
 
 // ─── Shared shapes ───────────────────────────────────────────────────────────
 
-export type Role = "admin" | "lead" | "agent" | "developer";
+export type Role = "admin" | "lead" | "agent" | "developer" | "demo";
 export type Plan = "premium" | "standard";
 export type ClientType = "school" | "lecture_centre";
 export type Sentiment = "calm" | "concerned" | "frustrated";
@@ -37,7 +37,7 @@ export type DeskEvent = (
   | { kind: "bot"; text: string; ts: string; groupId?: string }
   | { kind: "stats"; seen: number; ignored: number; used: number }
   | { kind: "live"; running: boolean; clock: number }
-  | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string }
+  | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string; at?: number }
   | { kind: "hub"; entry: HubEntry }
   | { kind: "import"; progress: ImportProgress }
 ) & { clientId?: string };
@@ -491,7 +491,7 @@ export const api = {
   me: () => request<User>("/auth/me"),
   logIn: (email: string, password: string) => send<User>("POST", "/auth/login", { email, password }),
   logOut: () => send("POST", "/auth/logout"),
-  demoAccounts: () => request<{ password: string; accounts: Array<{ name: string; email: string; role: Role; title: string }> }>("/auth/demo-accounts"),
+  demoAccounts: () => request<{ accounts: Array<{ name: string; email: string; role: Role; title: string; password: string }> }>("/auth/demo-accounts"),
 
   // The desk
   status: () => request<{ hasApiKey: boolean; githubConfigured: boolean; publicUrl: string }>("/status"),

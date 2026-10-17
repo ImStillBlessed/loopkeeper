@@ -48,6 +48,8 @@ export interface ToolContext {
   clientId?: string;
   /** Stores something the person said into this client's graph (through its normal pipeline, as their message). */
   remember?: (text: string) => Promise<void>;
+  /** Whether this person may have the agent open GitHub issues. */
+  mayWriteGithub?: boolean;
 }
 
 type Args = Record<string, unknown>;
@@ -333,7 +335,8 @@ TOOLS.push(
     "Open a GitHub issue for a Loopkeeper issue, with the teachers' messages, files and owner from the graph. Only when the user asks for it.",
     { issueId: ISSUE_ID, repo: { type: "string", description: "owner/name; defaults to the first connected repository" } },
     ["issueId"],
-    async (args, { graph, repos }) => {
+    async (args, { graph, repos, mayWriteGithub }) => {
+      if (mayWriteGithub === false) return { data: "This account can't open GitHub issues (it is the demo account). Say so, and offer the issue's details instead.", nodeIds: [], queries: [] };
       const repo = str(args.repo) ?? repos[0];
       if (!repo) return { data: "No GitHub repository is connected to this project.", nodeIds: [], queries: [] };
       const created = await openGithubIssue(graph, repo, String(args.issueId));

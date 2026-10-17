@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { requireRole, type StaffUser } from "../auth.js";
+import { isDemo, requireRole, visibleClientIds, type StaffUser } from "../auth.js";
 import { queryLog } from "../graph/activity.js";
-import { getFalkorDB, HQ_GRAPH, selectGraph } from "../graph/client.js";
+import { clientGraphName, getFalkorDB, HQ_GRAPH, selectGraph } from "../graph/client.js";
 import { DB1_LABELS, DB2_RELATIONSHIPS, DB3_INDEXES, QUERIES, run } from "../graph/queries.js";
 import { getWorld } from "../runtime/world.js";
 
@@ -10,12 +10,19 @@ type Env = { Variables: { user: StaffUser } };
 
 /**
  * The database page: what each FalkorDB graph holds, its indexes, and every query as it runs.
- * Counts and query names only, never content, but it spans every client, so only roles that see
- * every client may open it.
+ * Counts and query names only, never content. It spans every client, so only roles that see every
+ * client may open it, and the demo account, which sees HQ and the demo school's graph only.
  */
 export const dbRoutes = new Hono<Env>();
 
-dbRoutes.use("*", requireRole("admin", "lead", "developer"));
+dbRoutes.use("*", requireRole("admin", "lead", "developer", "demo"));
+
+/** Which graphs this person may see on the page. */
+async function graphsFor(user: StaffUser): Promise<(name: string) => boolean> {
+  if (!isDemo(user)) return () => true;
+  const allowed = new Set([HQ_GRAPH, ...(await visibleClientIds(user)).map(clientGraphName)]);
+  return (name) => allowed.has(name);
+}
 
 interface IndexRow {
   label: string;
@@ -28,7 +35,8 @@ interface IndexRow {
 
 dbRoutes.get("/", async (c) => {
   const clients = new Map((await (await getWorld()).registry()).map((r) => [r.id, r.name]));
-  const names = (await (await getFalkorDB()).list()).filter((name) => name.startsWith("lk_") && !name.startsWith("lk_test_")).sort(byRole);
+  const shown = await graphsFor(c.get("user"));
+  const names = (await (await getFalkorDB()).list()).filter((name) => name.startsWith("lk_") && !name.startsWith("lk_test_") && shown(name)).sort(byRole);
   const graphs = [];
   for (const name of names) {
     const graph = await selectGraph(name);
@@ -60,15 +68,16 @@ dbRoutes.get("/", async (c) => {
 });
 
 /** Every query as it runs (Server-Sent Events): the recent ones first, then live. */
-dbRoutes.get("/queries", (c) =>
-  streamSSE(c, async (stream) => {
-    for (const entry of queryLog.recent()) await stream.writeSSE({ data: JSON.stringify(entry) });
-    const unsubscribe = queryLog.subscribe((entry) => void stream.writeSSE({ data: JSON.stringify(entry) }));
+dbRoutes.get("/queries", async (c) => {
+  const shown = await graphsFor(c.get("user"));
+  return streamSSE(c, async (stream) => {
+    for (const entry of queryLog.recent()) if (shown(entry.graph)) await stream.writeSSE({ data: JSON.stringify(entry) });
+    const unsubscribe = queryLog.subscribe((entry) => void (shown(entry.graph) && stream.writeSSE({ data: JSON.stringify(entry) })));
     stream.onAbort(unsubscribe);
     while (!stream.aborted) await stream.sleep(15_000);
     unsubscribe();
-  }),
-);
+  });
+});
 
 /** The Cypher behind a named query. */
 dbRoutes.get("/queries/:id", (c) => {

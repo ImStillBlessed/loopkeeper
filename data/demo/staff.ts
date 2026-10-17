@@ -3,7 +3,7 @@
  * only the schools' teachers are simulated.
  */
 
-export type StaffRole = "admin" | "lead" | "agent" | "developer";
+export type StaffRole = "admin" | "lead" | "agent" | "developer" | "demo";
 
 export interface StaffSeed {
   id: string;
@@ -19,6 +19,12 @@ export const STAFF: StaffSeed[] = [
   { id: "stf_blessed", name: "Blessed Oigbochie", email: "blessed@ednovax.com", role: "lead", title: "Tech lead" },
   { id: "stf_maro", name: "Maro Orode", email: "maro@ednovax.com", role: "admin", title: "CTO" },
 ];
+
+/**
+ * A sign-in for visitors (e.g. hackathon judges). It sees only the demo school, can work its tickets
+ * and conversations, and can't reach real clients, the hub, settings or GitHub.
+ */
+export const DEMO_VISITOR: StaffSeed = { id: "stf_demo", name: "Demo visitor", email: "demo@ednovax.com", role: "demo", title: "Demo account" };
 
 /** SLA per plan: how fast the first reply and the fix must come. */
 export const SLA_POLICIES = [

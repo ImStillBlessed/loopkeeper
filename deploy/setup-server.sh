@@ -50,6 +50,9 @@ ID_HASH_SALT=$(openssl rand -hex 16)
 # The staff accounts' password when they are first created, and whether the login screen lists them.
 DEMO_PASSWORD=$(openssl rand -base64 12 | tr -d '/+=')
 SHOW_DEMO_ACCOUNTS=false
+# The demo visitor (sees only the demo school) is listed on the login screen with this password.
+DEMO_VISITOR_PASSWORD=ednovax-demo
+SHOW_DEMO_VISITOR=true
 EOF
   chmod 600 .env
   echo "Created. The staff password is in .env (DEMO_PASSWORD)."

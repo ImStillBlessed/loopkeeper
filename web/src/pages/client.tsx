@@ -31,6 +31,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
 
 /** One client's profile: health, conversation, tickets, promises, contacts and its groups. */
 export function ClientPage({ clientId, tab }: { clientId: string; tab: string }) {
+  const user = useUser();
   const client = useMemo(() => clientApi(clientId), [clientId]);
   const summary = useLiveQuery(() => client.summary(), [clientId]);
   const tickets = useLiveQuery(() => client.tickets(), [clientId]);
@@ -66,7 +67,7 @@ export function ClientPage({ clientId, tab }: { clientId: string; tab: string })
         }
       />
       <Tabs
-        tabs={TABS.map((t) => (t.id === "tickets" ? { ...t, count: openCount } : t))}
+        tabs={TABS.filter((t) => t.id !== "settings" || can(user.role, "manage_groups")).map((t) => (t.id === "tickets" ? { ...t, count: openCount } : t))}
         active={active}
         onChange={(id) => navigate(href("clients", clientId, id))}
         className="mb-6"

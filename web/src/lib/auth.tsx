@@ -43,8 +43,13 @@ export function useUser(): User {
 }
 
 /** What each role may do, mirroring the server's checks so buttons only show when they'll work. */
-export function can(role: Role, action: "manage_clients" | "delete_clients" | "manage_keys" | "manage_repos" | "restore_demo"): boolean {
+export function can(role: Role, action: "manage_clients" | "delete_clients" | "manage_keys" | "manage_repos" | "restore_demo" | "write_github" | "move_clock" | "manage_groups"): boolean {
   switch (action) {
+    // The demo account works the demo school's tickets and chat, nothing beyond.
+    case "write_github":
+    case "move_clock":
+    case "manage_groups":
+      return role !== "demo";
     case "manage_keys":
     case "delete_clients":
       return role === "admin";

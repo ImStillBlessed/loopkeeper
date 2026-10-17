@@ -1,4 +1,4 @@
-import { ArrowRight, Building2, Code2, Crown, Headset, KeyRound, MessagesSquare, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, Code2, Crown, Eye, Headset, KeyRound, MessagesSquare, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Flourish, Logo, Wordmark } from "@/components/brand";
 import { ErrorNote } from "@/components/page";
@@ -15,6 +15,7 @@ const ROLES: Record<Role, { sees: string; icon: typeof Crown; tone: Tone }> = {
   agent: { sees: "Sees only their own clients", icon: MessagesSquare, tone: "green" },
   developer: { sees: "Sees tickets and code", icon: Code2, tone: "violet" },
   admin: { sees: "Sees everything, incl. keys", icon: Crown, tone: "amber" },
+  demo: { sees: "Works the demo school, nothing else", icon: Eye, tone: "sky" },
 };
 
 /** Sign-in, with the demo accounts listed so anyone can try each role. */
@@ -24,7 +25,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [demo, setDemo] = useState<{ password: string; accounts: Array<{ name: string; email: string; role: Role; title: string }> }>();
+  const [demo, setDemo] = useState<{ accounts: Array<{ name: string; email: string; role: Role; title: string; password: string }> }>();
 
   useEffect(() => {
     api.demoAccounts().then(setDemo, () => undefined);
@@ -99,7 +100,7 @@ export function LoginPage() {
                 <span className="text-[14px] font-semibold">Try a demo account</span>
                 <span className="flex items-center gap-1.5 text-[12.5px] text-muted">
                   <KeyRound className="size-3.5" />
-                  <code className="rounded-md bg-card px-1.5 py-0.5 font-mono text-ink">{demo.password}</code>
+                  <code className="rounded-md bg-card px-1.5 py-0.5 font-mono text-ink">{demo.accounts[0].password}</code>
                 </span>
               </div>
               <ul className="flex flex-col gap-2">
@@ -108,7 +109,7 @@ export function LoginPage() {
                   return (
                     <li key={account.email}>
                       <button
-                        onClick={() => submit(undefined, { email: account.email, password: demo.password })}
+                        onClick={() => submit(undefined, { email: account.email, password: account.password })}
                         disabled={busy}
                         className="group flex w-full items-center gap-4 rounded-2xl border border-line-soft bg-card px-4 py-3.5 text-left shadow-card transition-[transform,border-color] hover:-translate-y-0.5 hover:border-primary/40"
                       >

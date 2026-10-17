@@ -47,8 +47,11 @@ export const config = {
   demo: {
     /** The staff accounts' password when they are first created. Set your own on a public server. */
     password: env("DEMO_PASSWORD", "ednovax-demo"),
-    /** List the accounts (and the password) on the login screen. Turn off on a public server. */
+    /** List the staff accounts (and their password) on the login screen. Turn off on a public server. */
     showAccounts: env("SHOW_DEMO_ACCOUNTS", "true") === "true",
+    /** The demo visitor account (sees only the demo school), and whether the login screen lists it. */
+    visitorPassword: env("DEMO_VISITOR_PASSWORD", "ednovax-demo"),
+    showVisitor: env("SHOW_DEMO_VISITOR", "true") === "true",
   },
   /**
    * Where the desk is reachable from outside, e.g. https://desk.ednovax.com. Webhook URLs for GitHub

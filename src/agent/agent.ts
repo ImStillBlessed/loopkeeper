@@ -40,6 +40,8 @@ export interface AskScope {
   clientName?: string;
   /** Stores what the person told the agent (see the remember tool). Without it, nothing is stored. */
   remember?: (text: string) => Promise<void>;
+  /** May the agent open GitHub issues for this person (not for the demo account). */
+  mayWriteGithub?: boolean;
 }
 
 /**
@@ -50,7 +52,7 @@ export async function ask(graph: Graph, llm: Llm, question: string, scope: AskSc
   const [stats] = await run<{ clock: number }>(graph, Q0_STATS);
   const features = await run<{ key: string; name: string }>(graph, C13_FEATURES);
   const earlier = scope.earlier ?? [];
-  const ctx: ToolContext = { graph, llm, now: scope.now ?? (stats?.clock || Date.now()), repos: scope.repos ?? [], hq: scope.hq, clientId: scope.clientId, remember: scope.remember };
+  const ctx: ToolContext = { graph, llm, now: scope.now ?? (stats?.clock || Date.now()), repos: scope.repos ?? [], hq: scope.hq, clientId: scope.clientId, remember: scope.remember, mayWriteGithub: scope.mayWriteGithub ?? true };
 
   const context = [
     scope.clientName ? `You are answering about one client: ${scope.clientName}. Never guess about other clients; same_problem_elsewhere gives counts only.` : "",

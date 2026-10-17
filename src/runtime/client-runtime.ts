@@ -187,7 +187,10 @@ export class ClientRuntime {
     const status = (error as Error & { status?: number }).status;
     const providerRefused = status === 401 || status === 402 || status === 429 || /rate limit|quota|credit|api key/i.test(error.message);
     if (!providerRefused) {
-      this.emit({ kind: "run", state: "failed", error: error.message });
+      // The database dropping the connection (it restarted) fails this batch only; the client reconnects.
+      const lostDatabase = /socket closed|ECONNRESET|ECONNREFUSED/i.test(error.message);
+      const text = lostDatabase ? "Lost the connection to FalkorDB for a moment, so a few messages weren't read. It has reconnected." : error.message;
+      this.emit({ kind: "run", state: "failed", error: text, at: Date.now() });
       return;
     }
     const wasLive = this.world.pauseLive();
@@ -198,7 +201,7 @@ export class ClientRuntime {
       error instanceof ProviderLimitError
         ? `Couldn't read new messages. ${error.message}${paused}`
         : `Couldn't read new messages: ${status === 401 ? "the Anthropic key was rejected" : "Anthropic refused the request"}.${paused} Check the key in Settings, or wait a minute and try again.`;
-    this.emit({ kind: "run", state: "failed", error: reason });
+    this.emit({ kind: "run", state: "failed", error: reason, at: Date.now() });
   }
 
   /**

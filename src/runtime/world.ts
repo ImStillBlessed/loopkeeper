@@ -1,7 +1,6 @@
 import type { Graph } from "falkordb";
-import { CHATTER, HENSON, PROBLEMS, TEACHERS } from "../../data/demo/henson.js";
+import { CHATTER, DEMO_CLIENT_IDS, HENSON, PROBLEMS, TEACHERS } from "../../data/demo/henson.js";
 import { productsOf, type ClientType, type Deployment, type Plan } from "../../data/synthetic/cast.js";
-import { deskGraph } from "../agent/conversations.js";
 import { config } from "../config.js";
 import { syncRepositories, type GithubRouter } from "../github/activity.js";
 import { githubConfigured } from "../github/api.js";
@@ -13,7 +12,7 @@ import { HubImport } from "../hub/import.js";
 import { SupportHub } from "../hub/support-hub.js";
 import { personId } from "../ingest/ids.js";
 import { copyProductReference } from "../hq/replicate.js";
-import { DEMO_DATA_VERSION, registerClient, resetAllGraphs, resetGraph, seedClientGraph, seedHq } from "../hq/seed.js";
+import { DEMO_DATA_VERSION, ensureStaff, registerClient, resetAllGraphs, resetGraph, seedClientGraph, seedHq } from "../hq/seed.js";
 import { claudeLlm } from "../llm/llm.js";
 import { ClientRuntime } from "./client-runtime.js";
 import { ChatClock } from "./clock.js";
@@ -75,11 +74,13 @@ export class World {
     const world = new World(hq);
     if (!(await graphExists(HQ_GRAPH))) await world.seedDemo();
     else if (await world.demoIsOutdated()) await world.rebuildDemo();
-    // Indexes added since a graph was created (e.g. the code vector index) are created now.
+    // Indexes and staff accounts added since the database was seeded are created now.
     await ensureSchema(hq);
+    await ensureStaff(hq);
     for (const client of await world.registry()) await world.loadClient(client);
     world.supportHub = await SupportHub.open({
-      directory: () => world.registry(),
+      // Real hub traffic never reaches the demo school, even when it names it.
+      directory: async () => (await world.registry()).filter((client) => !DEMO_CLIENT_IDS.includes(client.id)),
       clientGraph: (clientId) => world.clients.get(clientId)?.graph,
       deliver: (clientId, sender, text, ts) => world.deliverFromHub(clientId, sender, text, ts),
       emit: (event) => world.hub.emit(event),
@@ -112,16 +113,15 @@ export class World {
   }
 
   /**
-   * A fresh start for the demo: every client forgets its chat, tickets and promises, the teachers
-   * start from their first problem, the hub and Ask history are emptied, and the clock is real time
-   * again. Clients, their groups and teachers, products, staff and settings stay.
+   * A fresh start for the demo: the demo school forgets its chat, tickets and promises, and its
+   * teachers start from their first problem. Real clients, the hub and everything else are untouched.
    */
   async startOver(): Promise<void> {
     this.pauseLive();
-    for (const runtime of this.clients.values()) await runtime.reset();
-    for (const school of this.schools.values()) await school.reset();
-    await this.supportHub.reset();
-    await resetGraph(await deskGraph());
+    for (const [clientId, school] of this.schools) {
+      await this.client(clientId).reset();
+      await school.reset();
+    }
     this.clock.reset();
     this.emitLive();
   }
