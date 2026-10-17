@@ -7,7 +7,7 @@ Ednovax builds school management software for schools in Nigeria. All of its sup
 Loopkeeper reads those groups and runs the support desk from them. It drops the small talk and turns the rest into tickets, promises and decisions in a FalkorDB graph. Each ticket is linked to the school, the people involved, the product feature, the code most likely at fault (found by reading the repository) and the developer who owns it. It tracks response times against each school's plan, notices when several schools hit the same bug without showing one school's data to another, sends tickets to GitHub with full context, and follows the fix back to the school when the pull request merges. Anyone on the team can ask it questions in plain English and get answers with sources.
 
 - **Live:** https://support.ednovax.com
-- **Demo video:** _link to be added_
+- **Demo video:** [youtube demo](https://youtu.be/J7YIRSCTI9s)
 - **Hackathon:** Graph Hacks: Context for AI Agents (WeMakeDevs × FalkorDB)
 - **Tracks:** 03 Company Brain, 01 Agents That Act on Connected Data
 
