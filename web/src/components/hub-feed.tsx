@@ -1,6 +1,6 @@
 import { Clock, Send, Upload } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, type HubEntry } from "@/lib/api";
+import { api, type HubEntry, type ImportProgress } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import { formatTime } from "@/lib/format";
 import { useLive, useLiveQuery } from "@/lib/live";
@@ -21,10 +21,26 @@ const METHOD: Record<HubEntry["method"], string> = {
   "": "",
 };
 
-/** How many hub events have arrived, so lists refetch when the hub changes. */
+/** How many hub events have arrived, so lists refetch when the hub changes (an import reports at most once a second). */
 function useHubTick(): number {
   const { events } = useLive();
-  return useMemo(() => events.filter((e) => e.kind === "hub").length, [events]);
+  return useMemo(() => events.filter((e) => e.kind === "hub" || e.kind === "import").length, [events]);
+}
+
+/** The latest import's progress: from the event stream, or asked for when the page opens. */
+function useImportProgress(): ImportProgress | null {
+  const { events } = useLive();
+  const [initial, setInitial] = useState<ImportProgress | null>(null);
+  useEffect(() => {
+    api.hubImport().then(setInitial, () => undefined);
+  }, []);
+  return useMemo(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i];
+      if (event.kind === "import") return event.progress;
+    }
+    return initial;
+  }, [events, initial]);
 }
 
 /** The hub's pending count, refreshed on hub events (for badges). */
@@ -166,6 +182,7 @@ export function HubComposer() {
   const [note, setNote] = useState<string>();
   const [error, setError] = useState<string>();
   const file = useRef<HTMLInputElement>(null);
+  const progress = useImportProgress();
 
   const run = async (action: () => Promise<string | void>) => {
     setError(undefined);
@@ -203,7 +220,7 @@ export function HubComposer() {
         <Button size="sm" onClick={send} disabled={!text.trim()}>
           <Send /> Send to hub
         </Button>
-        <Button size="sm" variant="outline" onClick={() => file.current?.click()}>
+        <Button size="sm" variant="outline" onClick={() => file.current?.click()} disabled={progress?.state === "running"}>
           <Upload /> Import hub chat (.txt)
         </Button>
         <input
@@ -214,12 +231,64 @@ export function HubComposer() {
           onChange={(e) => {
             const chosen = e.target.files?.[0];
             e.target.value = "";
-            if (chosen) void run(async () => `Routing ${(await api.importHub(await chosen.text())).messages} messages…`);
+            if (chosen) void run(async () => void (await api.importHub(await chosen.text())));
           }}
         />
       </div>
+      {progress && <ImportStatus progress={progress} />}
       {note && <p className="text-[13px] text-green">{note}</p>}
       {error && <ErrorNote message={error} />}
+    </div>
+  );
+}
+
+const IMPORT_STATE: Record<ImportProgress["state"], string> = {
+  running: "Importing the hub chat",
+  done: "Hub chat imported",
+  stopped: "Import stopped. Import the same file again to carry on.",
+  failed: "The import stopped with an error",
+};
+
+/** A running (or finished) import: how far it is and where the messages went. */
+function ImportStatus({ progress }: { progress: ImportProgress }) {
+  const [stopping, setStopping] = useState(false);
+  const running = progress.state === "running";
+  const share = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+  const counts = [
+    `${progress.routed.toLocaleString()} routed`,
+    `${progress.pending.toLocaleString()} to route by hand`,
+    `${progress.ignored.toLocaleString()} team chatter`,
+    progress.skipped ? `${progress.skipped.toLocaleString()} already imported` : "",
+  ].filter(Boolean);
+
+  return (
+    <div className="rounded-xl border border-line-soft bg-paper px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="text-[13.5px] font-semibold">{IMPORT_STATE[progress.state]}</span>
+        <span className="ml-auto text-[12.5px] text-muted tabular">
+          {progress.done.toLocaleString()} of {progress.total.toLocaleString()}
+        </span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper-2" role="progressbar" aria-valuenow={share} aria-valuemin={0} aria-valuemax={100}>
+        <div className={cn("h-full rounded-full transition-[width]", progress.state === "failed" ? "bg-red" : "bg-primary")} style={{ width: `${share}%` }} />
+      </div>
+      <p className="mt-2 text-[12.5px] text-muted">{counts.join(", ")}</p>
+      {running && <p className="mt-1 text-[12.5px] text-muted">Each message also goes through its client's pipeline, so this runs at the pace the AI can read them. You can leave this page.</p>}
+      {progress.error && <ErrorNote message={progress.error} />}
+      {running && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          disabled={stopping}
+          onClick={() => {
+            setStopping(true);
+            void api.stopHubImport().finally(() => setStopping(false));
+          }}
+        >
+          {stopping ? "Stopping…" : "Stop"}
+        </Button>
+      )}
     </div>
   );
 }

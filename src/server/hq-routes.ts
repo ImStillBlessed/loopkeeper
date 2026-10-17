@@ -35,7 +35,7 @@ hqRoutes.get("/events", async (c) => {
   const world = await getWorld();
   const visible = new Set(await visibleClientIds(c.get("user")));
   const seesHub = ["admin", "lead", "developer"].includes(c.get("user").role);
-  const allowed = (event: HubEvent) => (event.kind === "hub" ? seesHub : !event.clientId || visible.has(event.clientId));
+  const allowed = (event: HubEvent) => (event.kind === "hub" || event.kind === "import" ? seesHub : !event.clientId || visible.has(event.clientId));
   const withHistory = c.req.query("history") !== "none";
   return streamSSE(c, async (stream) => {
     const send = (event: HubEvent) => stream.writeSSE({ data: JSON.stringify(event) });
@@ -376,14 +376,19 @@ hqRoutes.post("/hub/:id/ignore", hubStaff, async (c) => {
   return c.json({ ok: true });
 });
 
-/** A WhatsApp export of the hub group: every message is routed in order, in the background. */
+/** A WhatsApp export of the hub group, imported in the background (progress arrives on the event stream). */
 hqRoutes.post("/hub/import", hubStaff, async (c) => {
   const world = await getWorld();
   const { messages } = parseWhatsAppExport(await c.req.text(), { groupId: "hub", salt: config.idHashSalt, utcOffset: config.chatUtcOffset });
-  void (async () => {
-    for (const m of messages) await world.supportHub.receive(m.senderName, m.text, Date.parse(m.ts));
-  })();
-  return c.json({ messages: messages.length });
+  if (messages.length === 0) return c.json({ error: "No messages found. Is it a WhatsApp \"Export chat\" file (without media)?" }, 400);
+  return c.json(world.hubImport.start(messages.map((m) => ({ sender: m.senderName, text: m.text, ts: Date.parse(m.ts) }))));
+});
+
+hqRoutes.get("/hub/import", hubStaff, async (c) => c.json((await getWorld()).hubImport.status()));
+
+hqRoutes.post("/hub/import/stop", hubStaff, async (c) => {
+  (await getWorld()).hubImport.stop();
+  return c.json({ ok: true });
 });
 
 // ─── WhatsApp (Cloud API) groups ─────────────────────────────────────────────

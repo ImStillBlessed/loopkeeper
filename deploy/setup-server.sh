@@ -77,6 +77,7 @@ compose up -d
 say "Installing dependencies and building the dashboard"
 npm install --no-audit --no-fund
 npm run build
+npm run model:fetch
 
 say "Installing the systemd service"
 sed -e "s|__USER__|$DEPLOY_USER|" -e "s|__NODE__|$NODE_BIN|" deploy/support-desk.service | sudo tee /etc/systemd/system/$SERVICE.service >/dev/null

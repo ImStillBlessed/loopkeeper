@@ -28,6 +28,11 @@ export class Inbox {
     if (!this.working) void this.work();
   }
 
+  /** Resolves once fewer than `limit` messages are waiting (back-pressure for bulk sources). */
+  async whenBelow(limit: number): Promise<void> {
+    while (this.queue.length >= limit) await sleep(250);
+  }
+
   clear(): void {
     this.queue = [];
     this.recent.clear();

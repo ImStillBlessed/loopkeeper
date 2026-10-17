@@ -33,6 +33,10 @@ export const HB5_LAST_ROUTED_BY = query("HB5", "The client a sender's previous h
   WITH m ORDER BY m.ts DESC LIMIT 1
   RETURN m.clientIds AS clientIds`);
 
+export const HB9_KNOWN = query("HB9", "Is this hub message already recorded (an export imported before)", `
+  MATCH (m:HubMessage {id: $id})
+  RETURN count(m) AS known`);
+
 export const HB6_RESET = query("HB6", "Forget the hub's messages", `
   MATCH (m:HubMessage)
   DETACH DELETE m`);

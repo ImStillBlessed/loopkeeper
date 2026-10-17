@@ -1,3 +1,4 @@
+import type { ImportProgress } from "../hub/import.js";
 import type { MessageType } from "./message-types.js";
 
 export interface Person {
@@ -85,4 +86,4 @@ export interface HubEntry {
  * An event on the app-wide stream: the same events, tagged with the client they belong to (none for HQ),
  * plus the central support hub's own events (shown only to staff who see every client).
  */
-export type HubEvent = (PipelineEvent | { kind: "hub"; entry: HubEntry }) & { clientId?: string };
+export type HubEvent = (PipelineEvent | { kind: "hub"; entry: HubEntry } | { kind: "import"; progress: ImportProgress }) & { clientId?: string };

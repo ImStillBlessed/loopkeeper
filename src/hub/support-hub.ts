@@ -1,7 +1,7 @@
 import type { Graph } from "falkordb";
 import { config } from "../config.js";
 import { selectGraph } from "../graph/client.js";
-import { HB1_SAVE, HB2_ROUTE, HB3_IGNORE, HB4_FEED, HB5_LAST_ROUTED_BY, HB6_RESET, HB7_PENDING_COUNT, HB8_FIND_CONTACT } from "../graph/hub-queries.js";
+import { HB1_SAVE, HB2_ROUTE, HB3_IGNORE, HB4_FEED, HB5_LAST_ROUTED_BY, HB6_RESET, HB7_PENDING_COUNT, HB8_FIND_CONTACT, HB9_KNOWN } from "../graph/hub-queries.js";
 import { run } from "../graph/queries.js";
 import { personId, stableId } from "../ingest/ids.js";
 import type { Llm } from "../llm/llm.js";
@@ -38,7 +38,7 @@ interface Decision {
  * becomes tickets, promises and patterns like any other message. Anything unclear waits for a person.
  */
 export class SupportHub {
-  private queue: Promise<void> = Promise.resolve();
+  private queue: Promise<unknown> = Promise.resolve();
 
   private constructor(
     readonly graph: Graph,
@@ -51,10 +51,18 @@ export class SupportHub {
     return new SupportHub(graph, services);
   }
 
-  /** A message arrives in the hub group. Messages are routed one at a time, in order. */
-  receive(senderLabel: string, text: string, ts: number): Promise<void> {
-    this.queue = this.queue.then(() => this.route(senderLabel, text, ts)).catch((error: Error) => console.warn(`Hub routing: ${error.message}`));
-    return this.queue;
+  /**
+   * A message arrives in the hub group. Messages are routed one at a time, in order. Returns where it
+   * went. `quiet` leaves out the per-message event (imports report progress instead); `skipKnown`
+   * skips a message already recorded (an export imported again).
+   */
+  receive(senderLabel: string, text: string, ts: number, options: { quiet?: boolean; skipKnown?: boolean } = {}): Promise<HubEntry["status"] | "known" | undefined> {
+    const routed = this.queue.then(() => this.route(senderLabel, text, ts, options)).catch((error: Error) => {
+      console.warn(`Hub routing: ${error.message}`);
+      return undefined;
+    });
+    this.queue = routed;
+    return routed;
   }
 
   async feed(limit = 120): Promise<HubEntry[]> {
@@ -96,13 +104,18 @@ export class SupportHub {
 
   // ─── Routing ───────────────────────────────────────────────────────────────
 
-  private async route(senderLabel: string, text: string, ts: number): Promise<void> {
+  private async route(senderLabel: string, text: string, ts: number, options: { quiet?: boolean; skipKnown?: boolean }): Promise<HubEntry["status"] | "known"> {
+    const id = stableId("hub", [senderLabel, text, String(ts)]);
+    if (options.skipKnown) {
+      const [row] = await run<{ known: number }>(this.graph, HB9_KNOWN, { id });
+      if (row?.known) return "known";
+    }
     const parsed = parseHubMessage(text);
     const directory = await this.services.directory();
     const decision = await this.decide(senderLabel, parsed, text, ts, directory);
     const status: HubEntry["status"] = decision.ignore ? "ignored" : decision.clientIds.length ? "routed" : "pending";
     const entry: HubEntry = {
-      id: stableId("hub", [senderLabel, text, String(ts)]),
+      id,
       ts,
       sender: senderLabel,
       text,
@@ -112,11 +125,12 @@ export class SupportHub {
       reason: decision.reason,
     };
     await run(this.graph, HB1_SAVE, entry as unknown as Record<string, unknown>);
-    this.services.emit({ kind: "hub", entry });
+    if (!options.quiet) this.services.emit({ kind: "hub", entry });
 
     for (const clientId of decision.clientIds) {
       await this.services.deliver(clientId, await this.speakerFor(clientId, senderLabel, parsed), parsed.forwarded ? parsed.body : text, ts);
     }
+    return status;
   }
 
   /** The cheapest signal that settles it wins: named client, known contact, same thread, then the model. */

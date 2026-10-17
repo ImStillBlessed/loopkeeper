@@ -39,7 +39,22 @@ export type DeskEvent = (
   | { kind: "live"; running: boolean; clock: number }
   | { kind: "run"; state: "started" | "finished" | "stopped" | "failed"; error?: string }
   | { kind: "hub"; entry: HubEntry }
+  | { kind: "import"; progress: ImportProgress }
 ) & { clientId?: string };
+
+/** An exported hub chat being imported in the background. */
+export interface ImportProgress {
+  state: "running" | "done" | "stopped" | "failed";
+  total: number;
+  done: number;
+  skipped: number;
+  routed: number;
+  pending: number;
+  ignored: number;
+  startedAt: number;
+  finishedAt: number | null;
+  error: string | null;
+}
 
 export type Tenancy = "own_repo" | "branch" | "multi_tenant";
 
@@ -530,7 +545,9 @@ export const api = {
   sayInHub: (sender: string, text: string) => send("POST", "/hub/send", { sender, text }),
   routeHubMessage: (id: string, clientIds: string[]) => send("POST", `/hub/${id}/assign`, { clientIds }),
   ignoreHubMessage: (id: string) => send("POST", `/hub/${id}/ignore`),
-  importHub: (text: string) => request<{ messages: number }>("/hub/import", { method: "POST", body: text }),
+  importHub: (text: string) => request<ImportProgress>("/hub/import", { method: "POST", body: text }),
+  hubImport: () => request<ImportProgress | null>("/hub/import"),
+  stopHubImport: () => send("POST", "/hub/import/stop"),
 
   // WhatsApp (Cloud API) and where clients run
   whatsapp: () => request<{ configured: boolean; hubGroupId: string; groups: WhatsAppGroup[] }>("/whatsapp"),

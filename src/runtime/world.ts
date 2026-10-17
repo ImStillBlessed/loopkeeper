@@ -9,6 +9,7 @@ import { getClientGraph, getHqGraph, graphExists, HQ_GRAPH } from "../graph/clie
 import { H18_CLIENTS, H19_CLIENT_DELETE, H21_SEED_VERSION, H5_PRODUCTS, HG2_REPOS, HG4_REMOVE_REPO, X14_CLIENT_SIGNALS_RESET } from "../graph/hq-queries.js";
 import { M2_RENAME_CLIENT, P3_GROUP, RP5_FORGET_REPO, run, S3_PEOPLE } from "../graph/queries.js";
 import { ensureSchema } from "../graph/schema.js";
+import { HubImport } from "../hub/import.js";
 import { SupportHub } from "../hub/support-hub.js";
 import { personId } from "../ingest/ids.js";
 import { copyProductReference } from "../hq/replicate.js";
@@ -51,11 +52,16 @@ const withProducts = (input: ClientInput): ClientInput => (input.deployments?.le
  * The whole running app: the HQ graph, one chat clock, the app-wide event stream, a runtime per
  * client, and the demo school whose teachers the model plays. Created once at startup.
  */
+/** How many hub messages may wait in a client's inbox before the hub pauses for it to catch up. */
+const HUB_BACKLOG = 40;
+
 export class World {
   readonly hub = new EventHub();
   readonly clock = new ChatClock();
   /** The central support hub group (set once the clients are loaded). */
   supportHub!: SupportHub;
+  /** Importing an exported hub chat, in the background. */
+  hubImport!: HubImport;
   private clients = new Map<string, ClientRuntime>();
   /** Clients whose people are simulated (the demo school). */
   private schools = new Map<string, SimulatedSchool>();
@@ -79,6 +85,7 @@ export class World {
       emit: (event) => world.hub.emit(event),
       llm: claudeLlm,
     });
+    world.hubImport = new HubImport(world.supportHub, (progress) => world.hub.emit({ kind: "import", progress }));
     world.startTimers();
     // Live before a restart (or a code reload in development): stay live.
     for (const school of world.schools.values()) if (school.wasLive) school.start();
@@ -246,6 +253,8 @@ export class World {
     const groupId = `grp_${clientId}_hub`;
     await run(runtime.graph, P3_GROUP, { id: groupId, name: "Central support hub", source: "hub", ts });
     await runtime.receive(sender, text, { groupId, ts });
+    // Don't run ahead of the client's pipeline (an imported export can be thousands of messages).
+    await runtime.inbox.whenBelow(HUB_BACKLOG);
   }
 
   /**
@@ -266,8 +275,8 @@ export class World {
   }
 
   /** Someone says something in the central support hub (the dashboard, the CLI, or the WhatsApp webhook). */
-  sayInHub(sender: string, text: string, ts = this.clock.now()): Promise<void> {
-    return this.supportHub.receive(sender, text, ts);
+  async sayInHub(sender: string, text: string, ts = this.clock.now()): Promise<void> {
+    await this.supportHub.receive(sender, text, ts);
   }
 
   /** Ednovax staff write in a client's group. A simulated school hears it and its teachers answer. */

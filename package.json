@@ -11,7 +11,8 @@
     "data:generate": "tsx data/synthetic/generate.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
-    "chat": "node --import tsx cli/index.ts"
+    "chat": "node --import tsx cli/index.ts",
+    "model:fetch": "node --import tsx scripts/fetch-model.ts"
   },
   "license": "MIT",
   "type": "module",
